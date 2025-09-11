@@ -1,0 +1,41 @@
+.se-left-cursor,
+.se-right-cursor {
+  z-index: 8;
+  width: 28px;
+  height: 28px;
+  pointer-events: auto;
+}
+
+.se-left-cursor > .ace_cursor,
+.se-right-cursor > .ace_cursor {
+  animation: none;
+}
+.se-caret-cursor {
+  z-index: 8;
+  width: 28px;
+  height: 34px;
+  pointer-events: auto;
+}
+.se-caret-cursor > .ace_cursor {
+  animation: none;
+}
+.se-left-cursor {
+  background: url(data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20version%3D%221.1%22%20width%3D%2218%22%20height%3D%2218%22%20viewBox%3D%220%200%2024%2024%22%3E%0A%3Cg%3E%0A%3Cpath%20d%3D%22M%2012%2C0%20C%205.352%2C0%200%2C5.352%200%2C12%200%2C18.648%205.352%2C24%2012%2C24%2018.648%2C24%2024%2C18.648%2024%2C12%20L%2024%2C0%2012%2C0%20z%22%20style%3D%22fill%3A%23558eff%3Bfill-opacity%3A1%3Bstroke%3Anone%22%20%2F%3E%0A%3C%2Fg%3E%0A%3C%2Fsvg%3E%0A)
+    no-repeat 0 0;
+  background-size: cover;
+}
+.se-right-cursor {
+  background: url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20version%3D%221.1%22%20width%3D%2218%22%20height%3D%2218%22%20viewBox%3D%220%200%2024%2024%22%3E%0A%3Cg%20transform%3D%22translate(0%2C-24)%22%3E%0A%3Cpath%20d%3D%22m%2012%2C24%20c%206.648%2C0%2012%2C5.352%2012%2C12%200%2C6.648%20-5.352%2C12%20-12%2C12%20C%205.352%2C48%200%2C42.648%200%2C36%20l%200%2C-12%2012%2C0%20z%22%20style%3D%22fill%3A%23558eff%3Bfill-opacity%3A1%3Bstroke%3Anone%22%20%2F%3E%0A%3C%2Fg%3E%0A%3C%2Fsvg%3E%0A')
+    no-repeat 0 0;
+  background-size: cover;
+}
+.se-caret-cursor {
+  background: url(data:image/svg+xml,%3Csvg%20width%3D%2218%22%20height%3D%2222%22%20viewBox%3D%220%200%2024%2029%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%0A%3Cg%3E%0A%3Cpath%20fill%3D%22%23558eff%22%20d%3D%22m20.496197%2C8.485282c4.700846%2C4.700846%204.700846%2C12.269717%200%2C16.970563c-4.700846%2C4.700846%20-12.269717%2C4.700846%20-16.970563%2C0c-4.700846%2C-4.700846%20-4.700846%2C-12.269717%200%2C-16.970563l8.485281%2C-8.485281l8.485281%2C8.485281z%22%2F%3E%0A%3C%2Fg%3E%0A%3C%2Fsvg%3E%0A)
+    no-repeat 0 0;
+  background-size: cover;
+}
+.se-touch-cursor--hidden .se-caret-cursor,
+.se-touch-cursor--hidden .se-left-cursor,
+.se-touch-cursor--hidden .se-right-cursor {
+  display: none;
+}
