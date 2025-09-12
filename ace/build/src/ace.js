@@ -2945,7 +2945,7 @@ function DefaultHandlers(mouseHandler) {
         if (this.$clickSelection) {
             var cmpStart = this.$clickSelection.comparePoint(range.start);
             var cmpEnd = this.$clickSelection.comparePoint(range.end);
-
+            
             if (cmpStart == -1 && cmpEnd <= 0) {
                 anchor = this.$clickSelection.end;
                 if (range.end.row != cursor.row || range.end.column != cursor.column)
@@ -3927,6 +3927,7 @@ exports.addTouchListeners = function(el, editor) {
             clearTimeout(longTouchTimer);
             longTouchTimer = null;
             touchStartT = -1;
+            
             mode = "zoom";
             return;
         }
@@ -3953,7 +3954,7 @@ exports.addTouchListeners = function(el, editor) {
             clickCount++;
             e.preventDefault();
             e.button = 0;
-            switchToSelectionMode();
+             switchToSelectionMode();
         } else {
             clickCount = 0;
             var cursor = editor.selection.cursor;
@@ -3983,10 +3984,12 @@ exports.addTouchListeners = function(el, editor) {
             );
             if (diff1 < 3.5 && diff2 < 3.5)
                 mode = diff1 > diff2 ? "cursor" : "anchor";
-                
+                 
             if (diff2 < 3.5)
-                mode = "anchor";
+                // alert(),
+                mode = "scroll";
             else if (diff1 < 3.5)
+            
                 mode = "cursor";
             else
                 mode = "scroll";
@@ -4030,7 +4033,9 @@ exports.addTouchListeners = function(el, editor) {
 
         if (mode == "wait") {
             if (wheelX * wheelX + wheelY * wheelY > 4)
-                mode = "cursor";
+                // mode = "cursor";
+                e.preventDefault();
+                // mode = "scroll";
             else
                 return e.preventDefault();
         }
@@ -20379,7 +20384,7 @@ var Editor = require("./editor").Editor;
 
         var style = this.getSelectionStyle();
         orientedRange.marker = this.session.addMarker(orientedRange, "ace_selection", style);
-
+        
         this.session.$selectionMarkers.push(orientedRange);
         this.session.selectionMarkerCount = this.session.$selectionMarkers.length;
         return orientedRange;
