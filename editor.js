@@ -1,7 +1,7 @@
-const editor = window.ace.edit('editor');
+const editor = ace.edit('editor');
 
 // Inisialisasi TouchCursors seperti SPCK Editor
-editor.renderer.$keepTextAreaAtCursor = true;
+editor.renderer.$keepTextAreaAtCursor = false;
 
 //$anchorChanged
 // :
@@ -16,10 +16,12 @@ class TouchCursors {
     this.cursorLayer = this.renderer.$cursorLayer.element;
     this.container = editor.container; // <-- perbaikan di sini
     this.keepTextAreaAtCursor = !options.keepTextAreaAtCursor || false;
+    
     this.renderer.$keepTextAreaAtCursor = true;
     this.caretCursor = this.createCursor('se-caret-cursor');
     this.leftCursor = this.createCursor('se-left-cursor');
     this.rightCursor = this.createCursor('se-right-cursor');
+
 
     this.touching = null; // 'c' | 'l' | 'r' | null
 
@@ -314,8 +316,8 @@ class TouchCursors {
       const touches = e.touches;
       if (!touches || touches.length > 1) return; // ignore multi-touch
 
-      e.preventDefault();
-      e.stopPropagation();
+      //e.preventDefault();
+      //e.stopPropagation();
 
       const touch = touches[0];
       const { lineHeight: h } = this.editor.renderer.layerConfig;
@@ -377,40 +379,75 @@ class TouchCursors {
     return { x, y };
   }
 
-  onDoubleTap(e) {
-    const touch = e.touches && e.touches[0];
-    if (!touch) return;
+  // onDoubleTap(e) {
+  //   const touch = e.touches && e.touches[0];
+  //   if (!touch) return;
 
-    // Konversi ke koordinat editor
-    const { x, y } = this._clientToRendererCoords(touch.clientX, touch.clientY);
-    const pos = this.renderer.screenToTextCoordinates(x, y);
-    if (!pos) return;
+  //   // Konversi ke koordinat editor
+  //   const { x, y } = this._clientToRendererCoords(touch.clientX, touch.clientY);
+  //   const pos = this.renderer.screenToTextCoordinates(x, y);
+  //   if (!pos) return;
 
-    const session = this.editor.getSession();
-    const selection = this.editor.selection;
+  //   const session = this.editor.getSession();
+  //   const selection = this.editor.selection;
 
-    // Dapatkan range word di posisi touch
-    let range = session.getWordRange(pos.row, pos.column);
+  //   // Dapatkan range word di posisi touch
+  //   let range = session.getWordRange(pos.row, pos.column);
 
-    // Jika double tap kedua atau lebih, pilih seluruh line
-    if (this.lastTapTime && e.timeStamp - this.lastTapTime < 500) {
-      range = selection.getLineRange(pos.row);
-    }
+  //   // Jika double tap kedua atau lebih, pilih seluruh line
+  //   if (this.lastTapTime && e.timeStamp - this.lastTapTime < 500) {
+  //     range = selection.getLineRange(pos.row);
+  //   }
 
-    // Set selection ke range yang sesuai
-    selection.setRange(range);
+  //   // Set selection ke range yang sesuai
+  //   selection.setRange(range);
 
-    // Scroll ke row
-    this.editor.renderer.scrollToRow(pos.row);
+  //   // Scroll ke row
+  //   this.editor.renderer.scrollToRow(pos.row);
 
-    // Update posisi cursor (sesuai implementasi Ace)
-    this.showCursor(this.leftCursor);
-    this.showCursor(this.rightCursor);
-    this.hideCursor(this.caretCursor);
+  //   // Update posisi cursor (sesuai implementasi Ace)
+  //   this.showCursor(this.leftCursor);
+  //   this.showCursor(this.rightCursor);
+  //   this.hideCursor(this.caretCursor);
 
-    // Simpan waktu tap terakhir untuk menghitung double tap
-    this.lastTapTime = e.timeStamp;
-  }
+  //   // Simpan waktu tap terakhir untuk menghitung double tap
+  //   this.lastTapTime = e.timeStamp;
+  // }
+
+
+getTouchPos(e) {
+  // Ambil touch pertama
+  const touch = e.touches[0];
+
+  // Patch posisi biar MouseEvent Ace ngerti
+  e.clientX = touch.clientX;
+  e.clientY = touch.clientY;
+
+  // Gunakan MouseEvent dari Ace
+  const MouseEvent = ace.require("ace/mouse/mouse_event").MouseEvent;
+  console.log(MouseEvent)
+  const ev = new MouseEvent(e, this.editor);
+
+  // Ambil posisi dokumen (row, column)
+  return ev.getDocumentPosition();
+}
+
+
+onDoubleTap(e) {
+  const pos = this.getTouchPos(e);
+  const selection = this.editor.selection;
+
+  // Pindah cursor ke posisi tap
+  selection.moveToPosition(pos);
+
+  // Pilih satu kata
+  selection.selectWord();
+
+  // Scroll biar kelihatan
+  this.editor.renderer.scrollCursorIntoView(pos);
+}
+
+
 
   onDragEnd(clientX, clientY) {
     // Simpan handle yang sedang di-drag
@@ -519,67 +556,86 @@ editor.on('focus', () => {
   touchCursors.showCursor(touchCursors.rightCursor);
 });
 
-editor.session.setMode('ace/mode/html');
-const defaultSettings = {
+//editor.session.setMode('ace/mode/html');
+let defaultSettings = {
+  mode: 'ace/mode/javascript',
   scrollPastEnd: 0.75,
-  dragEnabled: false,
-  theme: 'ace/theme/dracula',
+  dragEnabled: true,
+  theme: 'ace/theme/github_dark',
   enableBasicAutocompletion: true,
   enableLiveAutocompletion: true,
   enableSnippets: true,
   cursorStyle: 'smooth',
-  tabSize: 2,
+  tabSize: 4,
   showPrintMargin: false,
   highlightActiveLine: false,
   keyboardHandler: 'ace/keyboard/sublime',
+  wrap: true
 };
-//  editor.setTheme('ace/theme/github_dark');
-//editor.setTheme();
+
 editor.setOptions(defaultSettings);
-editor.focus();
+
+//editor.focus();
 // Set default value
-editor.setValue(
-  `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-</head>
-<body>
-    <script type="text/javascript" charset="utf-8">
-        // Contoh kode default
-        function hello() {
-            console.log("Halo dunia!");
-        }
-    </script>
-</body>
-</html>`,
-  -1,
-);
+// editor.setValue(
+//   `<!DOCTYPE html>
+// <html lang="en">
+// <head>
+//     <meta charset="UTF-8">
+//     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+//     <title>Document</title>
+// </head>
+// <body>
+//     <script type="text/javascript" charset="utf-8">
+//         // Contoh kode default
+//         function hello() {
+//             console.log("Halo dunia!");
+//         }
+//     </script>
+// </body>
+// </html>`,
+//   -1,
+// );
 
 // Opsional: aktifkan wrap
-editor.session.setUseWrapMode(true);
+//editor.session.setUseWrapMode(true);
 
 // editor.setKeyboardHandler("ace/keyboard/vscode");
 
 // --- SESUAIKAN MAX LINES EDITOR ---
 function updateEditorMaxLines() {
-  // ambil parent langsung dari #editor
-  //scrollPastEnd: .75,
-  editor.resize(true); // refresh agar lineHeight terbaru
-  // pakai tinggi parent
+  const parent = document.getElementById('editor').parentElement;
 
-  editor.setOptions({ maxLines: 20, minLines: 1 });
+  // pastikan editor udah render biar lineHeight valid
+  editor.resize(true);
+
+  // ambil tinggi parent container
+  const parentHeight = parent.clientHeight;
+
+  // ambil lineHeight aktual dari Ace
+  const lineHeight = editor.renderer.lineHeight;
+
+  // hitung jumlah baris yang muat
+  const lines = Math.floor(parentHeight  / lineHeight);
+console.log(lines)
+  // set min dan max agar penuh mengikuti parent
+  editor.setOptions({
+    minLines: lines ,
+    maxLines: lines
+  });
+
+  editor.resize(true);
 }
 
-// jalankan sekali
-updateEditorMaxLines();
+// set ukuran font + hitung ulang
 function setEditorFontSize(size) {
   editor.setFontSize(size);
-  editor.resize(true); // refresh ukuran & lineHeight
-  updateEditorMaxLines(); // hitung ulang maxLines
+  editor.resize(true);
+  updateEditorMaxLines();
 }
+
+// awal
 setEditorFontSize(18);
-// update kalau layar resize
+
+// update kalau parent berubah ukuran
 window.addEventListener('resize', updateEditorMaxLines);
