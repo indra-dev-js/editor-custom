@@ -1,5 +1,6 @@
 {
   "name": "ace-custom",
+  "type": "module",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -8,8 +9,25 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
-    "ace-builds": "^1.43.3"
-  }
+    "ace-builds": "^1.43.3",
+    "emmet": "^2.4.11"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.35.0",
+    "@putout/plugin-remove-unused-variables": "^14.1.0",
+    "eslint": "^9.35.0",
+    "eslint-plugin-sonarjs": "^3.0.5",
+    "globals": "^16.4.0",
+    "terser": "^5.44.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/indra-dev-js/editor-custom.git"
+  },
+  "bugs": {
+    "url": "https://github.com/indra-dev-js/editor-custom/issues"
+  },
+  "homepage": "https://github.com/indra-dev-js/editor-custom#readme",
+  "description": ""
 }
