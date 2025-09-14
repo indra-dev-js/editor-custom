@@ -16,12 +16,28 @@ class TouchCursors {
     this.cursorLayer = this.renderer.$cursorLayer.element;
     this.container = editor.container; // <-- perbaikan di sini
     this.keepTextAreaAtCursor = !options.keepTextAreaAtCursor || false;
-    
-    this.renderer.$keepTextAreaAtCursor = true;
+
+    this.renderer.$keepTextAreaAtCursor = false;
     this.caretCursor = this.createCursor('se-caret-cursor');
     this.leftCursor = this.createCursor('se-left-cursor');
     this.rightCursor = this.createCursor('se-right-cursor');
-
+    this.cursorText = this.buildDom(
+      'div',
+      {
+        class: 'ace_cursor',
+      },
+      this.caretCursor,
+    );
+    this.cursorRight = this.buildDom(
+      'div',
+      { class: 'ace_cursor' },
+      this.rightCursor,
+    );
+    this.cursorLeft = this.buildDom(
+      'div',
+      { class: 'ace_cursor' },
+      this.leftCursor,
+    );
 
     this.touching = null; // 'c' | 'l' | 'r' | null
 
@@ -37,7 +53,19 @@ class TouchCursors {
     this.cursorLayer.appendChild(el);
     return { element: el };
   }
+  buildDom(name, attr = {}, parent) {
+    const el = document.createElement(name ? name : 'div');
+    if (arguments[1]) {
+      console.log(attr);
+      Object.entries(attr).forEach(([prop, value]) => {
+        el.setAttribute(prop, value);
+      });
+    }
 
+    if (parent) parent.element.append(el);
+
+    return { element: el };
+  }
   showCursor(cursor) {
     cursor.element.style.display = 'block';
   }
@@ -63,11 +91,18 @@ class TouchCursors {
     const caretCursor = this.caretCursor.element;
     const rightCursor = this.rightCursor.element;
     const leftCursor = this.leftCursor.element;
-
+    console.log(lineHeight);
     if (!cursorPos) return;
 
     // update caretCursor position
     caretCursor.style.left = cursorPos.left - 13 + 'px';
+    Object.assign(this.cursorText.element.style, {
+      top: `${-lineHeight}px`,
+      left: 'calc(10px + 3px)',
+      height: `${lineHeight}px`,
+      display: 'none',
+    });
+
     caretCursor.style.top = cursorPos.top + lineHeight + 'px';
     this.showCursor(this.caretCursor);
 
@@ -88,8 +123,15 @@ class TouchCursors {
 
       if (this.touching !== 'l') {
         console.log('l');
-        leftCursor.style.left = `${leftPos.left - 27}px`;
+        leftCursor.style.left = `${leftPos.left - 28}px`;
         leftCursor.style.top = `${leftPos.top + lineHeight}px`;
+        Object.assign(this.cursorLeft.element.style, {
+          top: `${-lineHeight}px`,
+          left: '27px',
+          height: `${lineHeight}px`,
+          display: 'block',
+        });
+
         this.showCursor(this.leftCursor);
       }
 
@@ -97,13 +139,22 @@ class TouchCursors {
         console.log('r');
         rightCursor.style.left = `${rightPos.left}px`;
         rightCursor.style.top = `${rightPos.top + lineHeight}px`;
+        Object.assign(this.cursorRight.element.style, {
+          top: `${-lineHeight}px`,
+          height: `${lineHeight}px`,
+          display: 'block',
+        });
+
         this.showCursor(this.rightCursor);
       }
 
       this.hideCursor(this.caretCursor);
+      this.hideCursor(this.cursorText);
     } else {
       // kalau belum ada selection, jangan tampilkan handle
       this.hideCursor(this.leftCursor);
+      this.hideCursor(this.cursorLeft);
+      this.hideCursor(this.cursorRight);
       this.hideCursor(this.rightCursor);
     }
   }
@@ -128,6 +179,7 @@ class TouchCursors {
       if (touch) {
         // console.log('[handleCaretMove] pos', touch.clientX, touch.clientY); // ✅ debug
         this.handleCaretMove(touch.clientX, touch.clientY);
+        this.showCursor(this.cursorText);
       }
     });
 
@@ -267,16 +319,11 @@ class TouchCursors {
 
     this.rightCursor.element.addEventListener('touchend', e => {
       e.preventDefault();
-      this.touching = null;
-      resetHandlePosition();
-    });
-
-    this.rightCursor.element.addEventListener('touchend', e => {
-      e.preventDefault();
       if (this.touching === 'r') this.touching = null;
       const touch = e.changedTouches[0];
       if (touch) this.onDragEnd(touch.clientX, touch.clientY);
       this.hideCursor(this.caretCursor);
+      this.hideCursor(this.cursorText);
     });
 
     this.rightCursor.element.addEventListener('touchcancel', e => {
@@ -299,6 +346,7 @@ class TouchCursors {
       const touch = e.changedTouches[0];
       if (touch) this.onDragEnd(touch.clientX, touch.clientY);
       this.hideCursor(this.caretCursor);
+      this.hideCursor(this.cursorText);
     });
 
     this.leftCursor.element.addEventListener('touchcancel', e => {
@@ -361,9 +409,9 @@ class TouchCursors {
       this.touching = null;
     });
 
-    // this.editor.on('focus', () => {
-    //   setTimeout(() => this.updateCursors(), 1);
-    // });
+    this.editor.on('focus', () => {
+      setTimeout(() => this.updateCursors(), 1);
+    });
   }
 
   // ---  onDoubleTap ---
@@ -414,40 +462,36 @@ class TouchCursors {
   //   this.lastTapTime = e.timeStamp;
   // }
 
+  getTouchPos(e) {
+    // Ambil touch pertama
+    const touch = e.touches[0];
 
-getTouchPos(e) {
-  // Ambil touch pertama
-  const touch = e.touches[0];
+    // Patch posisi biar MouseEvent Ace ngerti
+    e.clientX = touch.clientX;
+    e.clientY = touch.clientY;
 
-  // Patch posisi biar MouseEvent Ace ngerti
-  e.clientX = touch.clientX;
-  e.clientY = touch.clientY;
+    // Gunakan MouseEvent dari Ace
+    const MouseEvent = ace.require('ace/mouse/mouse_event').MouseEvent;
+    console.log(MouseEvent);
+    const ev = new MouseEvent(e, this.editor);
 
-  // Gunakan MouseEvent dari Ace
-  const MouseEvent = ace.require("ace/mouse/mouse_event").MouseEvent;
-  console.log(MouseEvent)
-  const ev = new MouseEvent(e, this.editor);
+    // Ambil posisi dokumen (row, column)
+    return ev.getDocumentPosition();
+  }
 
-  // Ambil posisi dokumen (row, column)
-  return ev.getDocumentPosition();
-}
+  onDoubleTap(e) {
+    const pos = this.getTouchPos(e);
+    const selection = this.editor.selection;
 
+    // Pindah cursor ke posisi tap
+    selection.moveToPosition(pos);
 
-onDoubleTap(e) {
-  const pos = this.getTouchPos(e);
-  const selection = this.editor.selection;
-
-  // Pindah cursor ke posisi tap
-  selection.moveToPosition(pos);
-
-  // Pilih satu kata
-  selection.selectWord();
-
-  // Scroll biar kelihatan
-  this.editor.renderer.scrollCursorIntoView(pos);
-}
-
-
+    // Pilih satu kata
+    selection.selectWord();
+    this.hideCursor(this.caretCursor);
+    // Scroll biar kelihatan
+    this.editor.renderer.scrollCursorIntoView(pos);
+  }
 
   onDragEnd(clientX, clientY) {
     // Simpan handle yang sedang di-drag
@@ -570,11 +614,25 @@ let defaultSettings = {
   showPrintMargin: false,
   highlightActiveLine: false,
   keyboardHandler: 'ace/keyboard/sublime',
-  wrap: true
+  wrap: true,
 };
-
+console.log();
 editor.setOptions(defaultSettings);
 
+async function addValue() {
+  try {
+    const response = await fetch('http://127.0.0.1:5500/editor.js');
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.text();
+    editor.setValue(data, -1);
+  } catch (e) {
+    console.error('Error fetching data:', e);
+  }
+}
+
+addValue();
 //editor.focus();
 // Set default value
 // editor.setValue(
@@ -616,12 +674,12 @@ function updateEditorMaxLines() {
   const lineHeight = editor.renderer.lineHeight;
 
   // hitung jumlah baris yang muat
-  const lines = Math.floor(parentHeight  / lineHeight);
-console.log(lines)
+  const lines = Math.floor(parentHeight / lineHeight);
+  console.log(lines);
   // set min dan max agar penuh mengikuti parent
   editor.setOptions({
-    minLines: lines ,
-    maxLines: lines
+    minLines: lines,
+    //  maxLines: lines,
   });
 
   editor.resize(true);
