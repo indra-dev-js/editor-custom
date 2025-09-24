@@ -22,6 +22,7 @@ body {
   height: 100dvh;
   overflow: hidden;
   position: relative;
+
 }
 
 
@@ -189,14 +190,14 @@ body {
 }
 
 .ace-github-dark .ace_fold {
-  background-color: #bbdaff;
+  background-color: transparent;
   border-color: #ffffff;
 }
 
 .ace-github-dark .ace_entity.ace_name.ace_function,
 .ace-github-dark .ace_support.ace_function,
 .ace-github-dark .ace_variable {
-  color: #bbdaff;
+  color: #bbdaff !important;
 }
 
 .ace-github-dark .ace_support.ace_class,
@@ -223,12 +224,13 @@ body {
 }
 
 .ace-github-dark .ace_indent-guide {
+  height: max-content!important;
+  display: inline-block !important;
   /* background: url('./img/indent-guide-dark.png') right repeat-y; */
 }
 
 .ace-github-dark .ace_indent-guide-active {
-  background: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAACCAYAAACZgbYnAAAAEklEQVQIW2PQ1dX9zzBz5sz/ABCcBFFentLlAAAAAElFTkSuQmCC)
-    right repeat-y;
+  background: none !important
 }
 
 .ace-github-dark .ace_constant.ace_buildin {
@@ -751,17 +753,14 @@ mask-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMTYiI
   box-sizing: border-box;
 
   display: inline-block;
-  height: 11px;
-  margin-top: -2px;
+  height: max-content !important;
+  margin-top: -5px !important;
   vertical-align: middle;
 
-  background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABEAAAAJCAYAAADU6McMAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAJpJREFUeNpi/P//PwOlgAXGYGRklAVSokD8GmjwY1wasKljQpYACtpCFeADcHVQfQyMQAwzwAZI3wJKvCLkfKBaMSClBlR7BOQikCFGQEErIH0VqkabiGCAqwUadAzZJRxQr/0gwiXIal8zQQPnNVTgJ1TdawL0T5gBIP1MUJNhBv2HKoQHHjqNrA4WO4zY0glyNKLT2KIfIMAAQsdgGiXvgnYAAAAASUVORK5CYII='),
-    url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAA3CAYAAADNNiA5AAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAACJJREFUeNpi+P//fxgTAwPDBxDxD078RSX+YeEyDFMCIMAAI3INmXiwf2YAAAAASUVORK5CYII=');
-  background-repeat: no-repeat, repeat-x;
-  background-position: center center, top left;
-  color: transparent;
+background: none !important;
+  color: currentColor;
 
-  border: 1px solid black;
+  border: none !important;
   border-radius: 2px;
 
   cursor: pointer;
@@ -772,8 +771,7 @@ mask-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMTYiI
 }
 
 .ace_fold:hover {
-  background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABEAAAAJCAYAAADU6McMAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAJpJREFUeNpi/P//PwOlgAXGYGRklAVSokD8GmjwY1wasKljQpYACtpCFeADcHVQfQyMQAwzwAZI3wJKvCLkfKBaMSClBlR7BOQikCFGQEErIH0VqkabiGCAqwUadAzZJRxQr/0gwiXIal8zQQPnNVTgJ1TdawL0T5gBIP1MUJNhBv2HKoQHHjqNrA4WO4zY0glyNKLT2KIfIMAAQsdgGiXvgnYAAAAASUVORK5CYII='),
-    url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAA3CAYAAADNNiA5AAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAACBJREFUeNpi+P//fz4TAwPDZxDxD5X4i5fLMEwJgAADAEPVDbjNw87ZAAAAAElFTkSuQmCC');
+  background: none !important;
 }
 
 
@@ -782,7 +780,7 @@ mask-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMTYiI
 }
 
 .ace_tooltip.ace_dark {
-  background-color: #636363;
+  background-color: #636363 !important;
   color: #fff;
 }
 
