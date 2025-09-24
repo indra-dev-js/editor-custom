@@ -9,14 +9,17 @@ editor.renderer.$keepTextAreaAtCursor = false;
 // $cursorChanged
 // :
 // true
+
+
 class TouchCursors {
   constructor(editor, options = {}) {
     this.editor = editor;
     this.renderer = editor.renderer;
     this.cursorLayer = this.renderer.$cursorLayer.element;
+    
     this.container = editor.container; // <-- perbaikan di sini
     this.keepTextAreaAtCursor = !options.keepTextAreaAtCursor || false;
-
+    
     this.renderer.$keepTextAreaAtCursor = false;
     this.caretCursor = this.createCursor('se-caret-cursor');
     this.leftCursor = this.createCursor('se-left-cursor');
@@ -29,23 +32,21 @@ class TouchCursors {
       this.caretCursor,
     );
     this.cursorRight = this.buildDom(
-      'div',
-      { class: 'ace_cursor' },
+      'div', { class: 'ace_cursor' },
       this.rightCursor,
     );
     this.cursorLeft = this.buildDom(
-      'div',
-      { class: 'ace_cursor' },
+      'div', { class: 'ace_cursor' },
       this.leftCursor,
     );
-
+    
     this.touching = null; // 'c' | 'l' | 'r' | null
     this.editor.selection.$cursorChanged = false;
-
+    
     this.initEventListeners();
     this.updateOnRender();
   }
-
+  
   createCursor(className) {
     const el = document.createElement('div');
     el.className = className;
@@ -61,27 +62,27 @@ class TouchCursors {
         el.setAttribute(prop, value);
       });
     }
-
+    
     if (parent) parent.element.append(el);
-
+    
     return { element: el };
   }
   showCursor(cursor) {
     cursor.element.style.display = 'block';
   }
-
+  
   hideCursor(cursor) {
     cursor.element.style.display = 'none';
   }
-
+  
   updateOnRender() {
     this.renderer.on('afterRender', () => {
       this.updateCursors();
-
+      
       //  this.renderer.updateTextAreaPosition();
     });
   }
-
+  
   updateCursors() {
     if (this.touching === 'c' || this.touching === 'l' || this.touching === 'r')
       return;
@@ -91,9 +92,9 @@ class TouchCursors {
     const caretCursor = this.caretCursor.element;
     const rightCursor = this.rightCursor.element;
     const leftCursor = this.leftCursor.element;
-
+    
     if (!cursorPos) return;
-
+    
     // update caretCursor position
     caretCursor.style.left = cursorPos.left - 13 + 'px';
     Object.assign(this.cursorText.element.style, {
@@ -102,25 +103,25 @@ class TouchCursors {
       height: `${lineHeight}px`,
       display: 'none',
     });
-
+    
     caretCursor.style.top = cursorPos.top + lineHeight + 'px';
     this.showCursor(this.caretCursor);
-
+    
     // update leftCursor and rightCursor positions
     const range = this.editor.selection.getRange();
     const hasSelection = !range.isEmpty();
-
+    
     if (hasSelection) {
       const leftPos = this.renderer.$cursorLayer.getPixelPosition(
         range.start,
         true,
       );
-
+      
       const rightPos = this.renderer.$cursorLayer.getPixelPosition(
         range.end,
         true,
       );
-
+      
       if (this.touching !== 'l') {
         leftCursor.style.left = `${leftPos.left - 28}px`;
         leftCursor.style.top = `${leftPos.top + lineHeight}px`;
@@ -130,10 +131,10 @@ class TouchCursors {
           height: `${lineHeight}px`,
           display: 'block',
         });
-
+        
         this.showCursor(this.leftCursor);
       }
-
+      
       if (this.touching !== 'r') {
         rightCursor.style.left = `${rightPos.left}px`;
         rightCursor.style.top = `${rightPos.top + lineHeight}px`;
@@ -142,10 +143,10 @@ class TouchCursors {
           height: `${lineHeight}px`,
           display: 'block',
         });
-
+        
         this.showCursor(this.rightCursor);
       }
-
+      
       this.hideCursor(this.caretCursor);
       this.hideCursor(this.cursorText);
     } else {
@@ -156,17 +157,16 @@ class TouchCursors {
       this.hideCursor(this.rightCursor);
     }
   }
-
+  
   initEventListeners() {
     this.caretCursor.element.addEventListener(
       'touchstart',
       e => {
         e.preventDefault();
         this.touching = 'c';
-      },
-      { passive: false },
+      }, { passive: false },
     );
-
+    
     // Drag caret cursor
     this.caretCursor.element.addEventListener('touchmove', e => {
       e.preventDefault();
@@ -180,7 +180,7 @@ class TouchCursors {
         this.showCursor(this.cursorText);
       }
     });
-
+    
     this.caretCursor.element.addEventListener('touchend', e => {
       e.preventDefault();
       const touch = e.changedTouches[0];
@@ -190,13 +190,13 @@ class TouchCursors {
         this.onDragEnd();
       }
     });
-
+    
     this.caretCursor.element.addEventListener('touchcancel', e => {
       e.preventDefault();
-
+      
       if (this.touching === 'c') this.touching = null;
     });
-
+    
     // Drag right cursor
     this.rightCursor.element.addEventListener(
       'touchstart',
@@ -206,42 +206,41 @@ class TouchCursors {
         this.touching = 'r'; // Menandai bahwa drag dimulai pada right cursor
         const touch = e.touches[0];
         this.initialTouch = { x: touch.clientX, y: touch.clientY };
-      },
-      { passive: false },
+      }, { passive: false },
     );
-
+    
     // Drag right cursor
-
+    
     this.rightCursor.element.addEventListener('touchmove', e => {
       e.preventDefault();
       e.stopPropagation();
       if (this.touching !== 'r') return;
       if (!e.target.closest('.se-right-cursor')) return;
-
+      
       const touch = e.changedTouches[0];
       if (!touch) return;
-
+      
       const rect = this.renderer.$cursorLayer.element.getBoundingClientRect();
       const x = touch.clientX - rect.left - 15;
       const y = touch.clientY - rect.top - 15;
       const { lineHeight } = this.renderer.layerConfig;
-
+      
       // 1️⃣ Update posisi visual bebas (handle tetap mengikuti jari)
       Object.assign(this.rightCursor.element.style, {
         top: `${y}px`,
         left: `${x}px`,
       });
-
+      
       // 2️⃣ Update selection sementara jika touch di area text
       const coords = this.renderer.screenToTextCoordinates(
         touch.clientX - 20,
         touch.clientY - 0.5 * (34 + lineHeight + 20),
       );
       if (!coords) return;
-
+      
       const range = this.editor.selection.getRange();
       const tempCoords = { row: coords.row, column: coords.column };
-
+      
       // End tidak boleh melewati start
       if (
         tempCoords.row > range.start.row ||
@@ -249,26 +248,26 @@ class TouchCursors {
           tempCoords.column >= range.start.column)
       ) {
         range.end = tempCoords;
-
+        
         // 3️⃣ Set range dan scroll otomatis ke posisi selection akhir
         this.editor.selection.setRange(range);
-
+        
         // Scroll ke end selection supaya terlihat saat drag
         this.editor.renderer.scrollCursorIntoView(range.end, 0.5);
         // sembunyikan caretleft pada saat drag cursorRight di move
         this.hideCursor(this.leftCursor);
       }
     });
-
+    
     // Drag left cursor
     this.leftCursor.element.addEventListener('touchmove', e => {
       e.preventDefault();
       e.stopPropagation();
       if (this.touching !== 'l') return;
-
+      
       const touch = e.changedTouches[0];
       if (!touch) return;
-
+      
       // const rect = this.renderer.scroller.getBoundingClientRect();
       const rect = this.renderer.$cursorLayer.element.getBoundingClientRect();
       const x = touch.clientX - rect.left - 14;
@@ -279,13 +278,13 @@ class TouchCursors {
         top: `${y}px`,
         left: `${x}px`,
       });
-
+      
       const coords = this.renderer.screenToTextCoordinates(
         touch.clientX + 15,
         touch.clientY - 0.5 * (34 + lineHeight),
       );
       if (!coords) return;
-
+      
       const range = this.editor.selection.getRange();
       const tempCoords = { row: coords.row, column: coords.column };
       // Start tidak boleh melewati end
@@ -302,19 +301,19 @@ class TouchCursors {
         this.hideCursor(this.rightCursor);
       }
     });
-
+    
     // touchend → kembalikan handle ke posisi selection valid
     const resetHandlePosition = () => {
       const range = this.editor.selection.getRange();
       this.syncHandleToCaret(range);
     };
-
+    
     this.leftCursor.element.addEventListener('touchend', e => {
       e.preventDefault();
       this.touching = null;
       resetHandlePosition();
     });
-
+    
     this.rightCursor.element.addEventListener('touchend', e => {
       e.preventDefault();
       if (this.touching === 'r') this.touching = null;
@@ -323,12 +322,12 @@ class TouchCursors {
       this.hideCursor(this.caretCursor);
       this.hideCursor(this.cursorText);
     });
-
+    
     this.rightCursor.element.addEventListener('touchcancel', e => {
       e.preventDefault();
       if (this.touching === 'r') this.touching = null;
     });
-
+    
     // Drag left cursor
     this.leftCursor.element.addEventListener('touchstart', e => {
       e.preventDefault();
@@ -337,14 +336,14 @@ class TouchCursors {
       const touch = e.touches[0];
       this.initialTouch = { x: touch.clientX, y: touch.clientY };
       // ⬇ tambahan
-      const pos = this.leftCursor.getPosition
-        ? this.leftCursor.getPosition()
-        : this.editor.renderer.screenToTextCoordinates(
-            this.leftCursor.element.offsetLeft,
-            this.leftCursor.element.offsetTop,
-          );
+      const pos = this.leftCursor.getPosition ?
+        this.leftCursor.getPosition() :
+        this.editor.renderer.screenToTextCoordinates(
+          this.leftCursor.element.offsetLeft,
+          this.leftCursor.element.offsetTop,
+        );
     });
-
+    
     this.leftCursor.element.addEventListener('touchend', e => {
       e.preventDefault();
       if (this.touching === 'l') this.touching = null;
@@ -353,32 +352,32 @@ class TouchCursors {
       this.hideCursor(this.caretCursor);
       this.hideCursor(this.cursorText);
     });
-
+    
     this.leftCursor.element.addEventListener('touchcancel', e => {
       e.preventDefault();
       if (this.touching === 'l') this.touching = null;
     });
-
+    
     let lastT = 0;
     let startX,
       startY,
       touchStartT = 0;
     let clickCount = 0;
-
+    
     // --- Matikan drag select default Ace ---
-
+    
     this.container.addEventListener('touchstart', e => {
       const touches = e.touches;
       if (!touches || touches.length > 1) return; // ignore multi-touch
-
+      
       //e.preventDefault();
       //e.stopPropagation();
-
+      
       const touch = touches[0];
       const { lineHeight: h } = this.editor.renderer.layerConfig;
-
+      
       const t = e.timeStamp;
-
+      
       // Reset clickCount jika jarak terlalu jauh (swipe)
       if (
         Math.abs(startX - touch.clientX) + Math.abs(startY - touch.clientY) >
@@ -387,96 +386,96 @@ class TouchCursors {
         touchStartT = -1;
         clickCount = 0;
       }
-
+      
       startX = touch.clientX;
       startY = touch.clientY;
-
+      
       // Deteksi double tap
       if (t - touchStartT < 300 && touches.length === 1) {
         clickCount++;
         e.button = 0;
-
+        
         // Panggil handler double tap
         this.onDoubleTap(e);
-
+        
         // Reset waktu untuk tap berikutnya
         touchStartT = 0;
       } else {
         clickCount = 0;
         touchStartT = t;
       }
-
+      
       lastT = t;
     });
-
+    
     this.editor.on('blur', () => {
       this.hideCursor(this.caretCursor);
       this.hideCursor(this.leftCursor);
       this.hideCursor(this.rightCursor);
       this.touching = null;
     });
-
+    
     this.editor.on('focus', () => {
       setTimeout(() => this.updateCursors(), 1);
     });
   }
-
+  
   // ---  onDoubleTap ---
-
+  
   _clientToRendererCoords(clientX, clientY) {
     // Ambil posisi bounding editor di layar
     const rect = this.container.getBoundingClientRect();
-
+    
     // Konversi posisi touch → relatif ke editor
     const x = clientX - rect.left;
     const y = clientY - rect.top;
-
+    
     return { x, y };
   }
-
+  
   getTouchPos(e) {
     // Ambil touch pertama
     const touch = e.touches[0];
-
+    
     // Patch posisi biar MouseEvent Ace ngerti
     e.clientX = touch.clientX;
     e.clientY = touch.clientY;
-
+    
     // Gunakan MouseEvent dari Ace
     const MouseEvent = ace.require('ace/mouse/mouse_event').MouseEvent;
-
+    
     const ev = new MouseEvent(e, this.editor);
-
+    
     // Ambil posisi dokumen (row, column)
     return ev.getDocumentPosition();
   }
-
+  
   onDoubleTap(e) {
     const pos = this.getTouchPos(e);
     const selection = this.editor.selection;
-
+    
     // Pindah cursor ke posisi tap
     selection.moveToPosition(pos);
-
+    
     // Pilih satu kata
     selection.selectWord();
     this.hideCursor(this.caretCursor);
     // Scroll biar kelihatan
     this.editor.renderer.scrollCursorIntoView(pos);
   }
-
+  
   onDragEnd(clientX, clientY) {
     // Simpan handle yang sedang di-drag
     const active = this.touching;
     this.touching = null;
-
+    
     if (clientX !== undefined && clientY !== undefined) {
       // Dapatkan koordinat valid dalam text
       const coords = this.renderer.screenToTextCoordinates(clientX, clientY);
-
+      
       if (coords) {
         const range = this.editor.selection.getRange();
-
+        
         if (active === 'r') {
           // Update end selection
           if (
@@ -495,10 +494,10 @@ class TouchCursors {
             range.start = coords;
           }
         }
-
+        
         // Terapkan range
         this.editor.selection.setRange(range);
-
+        
         // Kembalikan handle ke posisi valid
         this.syncHandleToCaret(range);
       } else {
@@ -507,14 +506,14 @@ class TouchCursors {
         this.syncHandleToCaret(range);
       }
     }
-
+    
     // Update posisi visual left/right
     this.updateCursors();
-
+    
     // caretCursor tetap terlihat
     this.showCursor(this.caretCursor);
   }
-
+  
   handleCaretMove(clientX, clientY) {
     const rect = this.renderer.$cursorLayer.element.getBoundingClientRect();
     const { lineHeight } = this.renderer.layerConfig;
@@ -522,37 +521,36 @@ class TouchCursors {
     // Offset agar caret tepat di posisi sentuh
     const x = clientX - rect.left - 14 + 1;
     const y = clientY - rect.top - 17;
-
+    
     // Update style caret element (water drop)
     this.caretCursor.element.style.left = x + 'px';
     this.caretCursor.element.style.top = y + 'px';
-
+    
     // Hitung posisi text berdasarkan offset yang disesuaikan
     const coords = this.renderer.screenToTextCoordinates(
       clientX + 1,
       clientY - 0.5 * (34 + lineHeight),
     );
-
+    
     if (coords) {
       this.editor.moveCursorTo(coords.row, coords.column);
       this.editor.selection.clearSelection();
       // ⚡ Auto scroll biar caret selalu kelihatan
-      this.editor.renderer.scrollCursorIntoView(
-        { row: coords.row, column: coords.column },
+      this.editor.renderer.scrollCursorIntoView({ row: coords.row, column: coords.column },
         0.5, // margin (optional) → 0.5 artinya jaga di tengah layar
       );
-
+      
       this.updateCursors();
     }
   }
-
+  
   syncHandleToCaret(range) {
     const renderer = this.renderer;
     renderer.$cursorLayer.getPixelPosition(range.start, true);
     this.showCursor(this.leftCursor);
     renderer.$cursorLayer.getPixelPosition(range.end, true);
     this.showCursor(this.rightCursor);
-
+    
     this.hideCursor(this.caretCursor);
   }
 }
@@ -572,200 +570,179 @@ editor.on('focus', () => {
   touchCursors.showCursor(touchCursors.rightCursor);
 });
 
-// setelah editor siap
 
-// ------------------------
-// DEFAULT SETTINGS
 
-// const dynamicCompleter = {
-//   getCompletions: function(editor, session, pos, prefix, callback){
-//     const line = session.getLine(pos.row);
-//     const preText = line.slice(0,pos.column);
-//     let completions = [];
 
-//     // window autocomplete
-//     if(preText.endsWith("window.") && typeof window !== "undefined"){
-//       const props = [
-//         ...Object.getOwnPropertyNames(window),
-//         ...Object.getOwnPropertyNames(Object.getPrototypeOf(window))
-//       ];
-//       completions = props.map(p => ({
-//         caption: p,
-//         value: p,
-//         meta: typeof window[p]==="function"?"method":"property"
-//       }));
-//       return callback(null, completions);
-//     }
+// Misal kita pake mode javascript bawaan sebagai basis
+const JavaScriptMode = ace.require("ace/mode/javascript").Mode
+const TextHighlightRules = ace.require("ace/mode/javascript_highlight_rules").JavaScriptHighlightRules;
 
-//     // ambil semua token lokal dari session
-//     const words = session.getValue().split(/\W+/).filter(Boolean);
-//     const uniqueWords = [...new Set(words)];
-//     completions = uniqueWords.map(w => ({caption:w,value:w,meta:"local"}));
 
-//     callback(null, completions);
-//   }
-// };
 
-// daftarkan
 
-// function getAllProps(obj){
-//   const props = new Set();
-//   let current = obj;
-//   while(current && current !== Object.prototype){
-//     try {
-//       Object.getOwnPropertyNames(current).forEach(p => props.add(p));
-//     } catch(e){}
-//     current = Object.getPrototypeOf(current);
-//   }
-//   return [...props];
-// }
 
-// const dynamicCompleter = {
-//   getCompletions: function(editor, session, pos, prefix, callback){
-//     const line = session.getLine(pos.row);
-//     const preText = line.slice(0,pos.column);
-//     let completions = [];
 
-//     // === global object autocomplete ===
-//     let globalObj = null;
 
-//     if(preText.endsWith("window.") && typeof window !== "undefined") {
-//       globalObj = window;
-//     } else if(preText.endsWith("globalThis.") && typeof globalThis !== "undefined") {
-//       globalObj = globalThis;
-//     } else if(preText.endsWith("self.") && typeof self !== "undefined") {
-//       globalObj = self;
-//     }
+const CustomHighlightRules = function() {
+  var keywordMapper = this.createKeywordMapper({
+    "variable.language": "Array|Boolean|Date|Function|Iterator|Number|Object|RegExp|String|Proxy|" + // Constructors
+      "Namespace|QName|XML|XMLList|" + // E4X
+      "ArrayBuffer|Float32Array|Float64Array|Int16Array|Int32Array|Int8Array|" +
+      "Uint16Array|Uint32Array|Uint8Array|Uint8ClampedArray|" +
+      "Error|EvalError|InternalError|RangeError|ReferenceError|StopIteration|" + // Errors
+      "SyntaxError|TypeError|URIError|" +
+      "decodeURI|decodeURIComponent|encodeURI|encodeURIComponent|eval|isFinite|" + // Non-constructor functions
+      "isNaN|parseFloat|parseInt|" +
+      "JSON|Math|" + // Other
+      "this|arguments|window|document", // Pseudo
+    "keyword": "const|yield|import|get|set|async|await|" +
+      "break|case|catch|continue|default|delete|do|else|finally|for|function|" +
+      "if|in|of|instanceof|new|return|switch|throw|try|typeof|let|var|while|with|debugger|" +
+      "__parent__|__count__|escape|unescape|with|__proto__|" +
+      "class|enum|extends|super|export|implements|private|public|interface|package|protected|static",
+    "storage.type": "const|let|var|function",
+    "constant.language": "null|Infinity|NaN|undefined",
+    "support.function": "alert|addEventListener|bebek",
+    "constant.language.boolean": "true|false"
+  }, "identifie");
+  
+  
+  
+  // Panggil rules asli dulu
+  TextHighlightRules.call(this);
+  const comments = this.$rules.comment
+  
+  const method_name = "[a-zA-Z\\$_\u00a1-\uffff][a-zA-Z\\d\\$_\u00a1-\uffff]*"
+  // Tambahin custom token
+  this.$rules["object_class"] = []
+  // daftar bawaan JS yg mau dikecualikan
+const builtins = [
+  "Window", "Document", "Math", "JSON", "Array", "Object", "String", "Number", 
+  "Boolean", "Function", "Error", "RegExp", "Date", "Promise", "Set", "Map",
+  "WeakSet", "WeakMap", "Symbol", "BigInt", "Reflect", "Proxy", "Intl","NaN"
+];
 
-//     if(globalObj){
-//       const props = getAllProps(globalObj);
-//       completions = props.map(p => ({
-//         caption: p,
-//         value: p,
-//         meta: typeof globalObj[p] === "function" ? "method" : "property"
-//       }));
-//       return callback(null, completions);
-//     }
+// gabung jadi regex
+const builtinsRe = "\\b(?:" + builtins.join("|") + ")\\b";
 
-//     // === ambil semua token lokal dari session ===
-//     const words = session.getValue().split(/\W+/).filter(Boolean);
-//     const uniqueWords = [...new Set(words)];
-//     completions = uniqueWords.map(w => ({caption:w,value:w,meta:"local"}));
+// tambahin rule utk entity.name.class tapi exclude builtins
+this.$rules["no_regex"].unshift(
+  {
+    token: "entity.name.class",
+    // cari huruf besar di awal, tapi bukan salah satu dari builtins
+    regex: "(?!"+ builtinsRe +")\\b[A-Z][A-Za-z0-9_$]*\\b"
+  }
+);
 
-//     callback(null, completions);
-//   }
-// };
+// terus taruh rule builtins agar diwarnain beda (support.class/builtin)
+this.$rules["no_regex"].unshift(
+  {
+    token: "variable.language",
+    regex: builtinsRe
+  }
+);
 
-// // daftarkan
-// ace.require("ace/ext/language_tools").addCompleter(dynamicCompleter);
 
-// // trigger autocomplete otomatis saat ketik titik
-// editor.commands.on("afterExec", e=>{
-//   if(e.command.name==="insertstring" && e.args==="."){
-//     editor.execCommand("startAutocomplete");
-//   }
-// });
+  this.$rules["no_regex"].unshift(
+    //  punctuation.operator
+    {
+      
+      token: [
+        "entity.name.function",
+        "text",
+        "paren.lparen"
+      ],
+      regex: "(" + method_name + ")(\\s*)(\\()",
+      next: "default_parameter"
+    },
+    {
+      token: [
+        "punctuation.operator",
+        "support.function",
+        "text",
+        "paren.lparen"
+      ],
+      regex: "(\\.)" + "(" + method_name + ")(\\s*)(\\()",
+      next: "default_parameter"
+    },
+    
+  );
+  
+  this.$rules["no_regex"].unshift(
+    
+    
+    
+    {
+      token: "keyword",
+      regex: "\\b(class|constructor|if|else|extends)\\b",
+      next: "object_class"
+    },
+    
+    
+    
 
-// const keyWordCompleter = ace.require("ace/ext/language_tools").keyWordCompleter;
-// const snippetCompleter = ace.require("ace/ext/language_tools").snippetCompleter;
+  );
+  this.$rules["object_class"].unshift(
+    ...comments,
+  {
+    token: "text",
+    regex: "\\s+"
+  },
+  {
+    token: "entity.name.class",
+    regex: "(" + method_name + ")",
+    next: "no_regex"
+  },
+  {
+    token: "punctuation.operator",
+    regex: "$"
+  },
+    {
+  token: "empty",
+  regex: "",
+  next: "no_regex"
+}
+  );
 
-// const userVars = new Map();
 
-// editor.getSession().on('change', e => {
-//   const lines = editor.getValue().split("\n");
-//   lines.forEach(line => {
-//     const match = line.match(/\b(?:let|const|var)\s+([\w$]+)\s*=?/);
-//     if(match){
-//       const name = match[1];
-//       console.log(name);
-//       userVars.set(name, true); // tandai variable exist
-//     }
-//   });
-// });
+  this.$rules["property"].unshift(
+  {
+    token: "constant.language.boolean",
+    regex: "\\b(?:true|false)\\b"
+  }
+);
+  
+  this.$rules["property"] = this.$rules["property"].filter(rule => 
+  rule.token !== "support.function.dom" && rule.token !== "support.constant"
+);
 
-// // dynamicCompleter bisa cek userVars sebelum fallback ke keyword
+};
 
-// function getAllProps(obj){
-//   const props = new Set();
-//   let current = obj;
-//   while(current && current !== Object.prototype){
-//     try {
-//       Object.getOwnPropertyNames(current).forEach(p => {
-//         if(p !== 'caller' && p !== 'callee' && p !== 'arguments') props.add(p);
-//       });
-//     } catch(e){}
-//     current = Object.getPrototypeOf(current);
-//   }
-//   return [...props];
-// }
 
-// function getNativeProps(obj){
-//   if(obj == null) return [];
-//   return getAllProps(obj); // langsung ambil semua prototype chain
-// }
+// Warisi prototype rules asli
+CustomHighlightRules.prototype = Object.create(TextHighlightRules.prototype);
+CustomHighlightRules.prototype.constructor = CustomHighlightRules;
 
-// const dynamicCompleter = {
-//   getCompletions: function(editor, session, pos, prefix, callback){
-//     const line = session.getLine(pos.row);
-//     const preText = line.slice(0,pos.column);
+// Buat mode custom yang pakai rules custom
+const CustomJavaScriptMode = function() {
+  JavaScriptMode.call(this);
+  this.HighlightRules = CustomHighlightRules;
+  
+};
+function fname(param) {
+  // Tab to edit
+}
 
-//     // --- global autocomplete ---
-//     let globalObj = null;
-//     if(preText.endsWith("window.") && typeof window!=="undefined") globalObj = window;
-//     else if(preText.endsWith("globalThis.") && typeof globalThis!=="undefined") globalObj = globalThis;
-//     else if(preText.endsWith("this.") && typeof this!=="undefined") globalObj = this;
-//     else if(preText.endsWith("self.") && typeof self!=="undefined") globalObj = self;
 
-//     if(globalObj){
-//       const completions = getAllProps(globalObj).map(p=>({
-//         caption: p,
-//         value: p,
-//         // meta: typeof globalObj[p]
-//       }));
+CustomJavaScriptMode.prototype = Object.create(JavaScriptMode.prototype);
+CustomJavaScriptMode.prototype.constructor = CustomJavaScriptMode;
 
-//       return callback(null, completions);
-//     }
-
-// // --- user variable autocomplete ---
-//     const varMatch = preText.match(/([\w$]+)$/); // user ketik nama variable
-//     if(varMatch){
-//       const prefixVar = varMatch[1];
-//     const completions = [...userVars]
-//   .filter(v => typeof v === "string" && v.startsWith(prefixVar))
-//   .map(v => ({ caption:v, value:v, meta:"user variable" }));
-
-//       return callback(null, completions);
-//     }
-
-//     callback(null, []);
-//   }
-// };
-
-// // konfigurasi tipe yang mau muncul autocomplete properties
-
-// // const data = []
-// // // data
-
-// // // helper ambil semua properti + inherited
-// // function getAllProps(obj){
-// //   const props = [];
-// //   while(obj && obj !== Object.prototype){
-// //     props.push(...Object.getOwnPropertyNames(obj));
-// //     obj = Object.getPrototypeOf(obj);
-// //   }
-// //   return Array.from(new Set(props));
-// // }
-
-// langTools.setCompleters([dynamicCompleter, keyWordCompleter, snippetCompleter]);
-
-// Pastikan library Ace.js sudah dimuat
-
-// Membuat objek completer baru
-// --- Objek Completer Kustom ---
+// Apply mode ke editor
+editor.session.setMode(new CustomJavaScriptMode());
 
 //const editor ada di atas
 const defaultSettings = {
-  mode: 'ace/mode/javascript',
+  //mode: 'ace/mode/javascript',
   theme: 'ace/theme/github_dark',
   scrollPastEnd: 0.75,
   dragEnabled: false,
@@ -778,8 +755,13 @@ const defaultSettings = {
   highlightActiveLine: false,
   keyboardHandler: 'ace/keyboard/sublime',
   wrap: true,
+  fixedWidthGutter: true
 };
 editor.setOptions(defaultSettings);
+const Obj = {
+  name: () => 1
+}
+
 
 const langTools = ace.require('ace/ext/language_tools');
 
@@ -794,7 +776,7 @@ function getAllProps(obj) {
 }
 
 const objectCompleter = {
-  getCompletions: function (editor, session, pos, prefix, callback) {
+  getCompletions: function(editor, session, pos, prefix, callback) {
     const line = session.getLine(pos.row);
     const before = line.slice(0, pos.column);
     const match = before.match(/([\w\.]+)\.$/);
@@ -811,10 +793,10 @@ const objectCompleter = {
       // }
       // return callback(null, []);
     }
-
+    
     const path = match[1].split('.');
     let obj = window;
-
+    
     for (let i = 0; i < path.length; i++) {
       if (obj && path[i] in obj) {
         obj = obj[path[i]];
@@ -823,13 +805,13 @@ const objectCompleter = {
         break;
       }
     }
-
+    
     if (!obj) return callback(null, []);
-
+    
     const props = getAllProps(obj).filter(
       name => !/^(__.*__$|prototype$|constructor$)/.test(name),
     );
-
+    
     const list = props.map(name => {
       let meta = 'property';
       try {
@@ -852,7 +834,7 @@ const objectCompleter = {
 };
 
 const customCompleter = {
-  getCompletions: function (editor, session, pos, prefix, callback) {
+  getCompletions: function(editor, session, pos, prefix, callback) {
     const line = session.getLine(pos.row).slice(0, pos.column);
     // Regex kasar untuk mendeteksi:
     // 1. Setelah 'function ' -> menulis nama fungsi
@@ -861,39 +843,38 @@ const customCompleter = {
     const insideFunctionParams = /function\s+[a-zA-Z_$][\w$]*\([^)]*$/.test(
       line,
     );
-
+    
     if (insideFunctionName || insideFunctionParams) {
       // jangan tampilkan snippet atau saran Ace bawaan
       return callback(null, []);
     }
     const customWords = [
-      {
-        caption: 'cl',
-        snippet: 'console.log(${1})${2}', // langsung jadi console.
-        meta: 'snippet',
-        type: 'snippet',
-        score: 99999,
-      },
-      {
-        caption: 'cw',
-        snippet: 'console.warn(${1})${2}',
-        meta: 'snippet',
-        type: 'snippet',
-      },
-      {
-        caption: 'ce',
-        snippet: 'console.error(${1})${2}',
-        meta: 'snippet',
-        type: 'snippet',
-      },
-      {
-        caption: 'fun',
-        snippet: 'function ${1}(${2}) {\n${3}\n}',
-        meta: 'snippet',
-        type: 'snippet',
-      },
-    ];
-
+    {
+      caption: 'cl',
+      snippet: 'console.log(${1})${2}', // langsung jadi console.
+      meta: 'snippet',
+      type: 'snippet',
+      score: 99999,
+    },
+    {
+      caption: 'cw',
+      snippet: 'console.warn(${1})${2}',
+      meta: 'snippet',
+      type: 'snippet',
+    },
+    {
+      caption: 'ce',
+      snippet: 'console.error(${1})${2}',
+      meta: 'snippet',
+      type: 'snippet',
+    },
+    {
+      caption: 'fun',
+      snippet: 'function ${1}(${2}) {\n${3}\n}',
+      meta: 'snippet',
+      type: 'snippet',
+    }, ];
+    
     const filtered = customWords.filter(c => c.caption.startsWith(prefix));
     callback(null, filtered);
   },
@@ -911,16 +892,16 @@ editor.setOptions({
   enableLiveAutocompletion: true,
 });
 
-editor.setValue('let div = document.createElement("div")', 1);
+
 
 var ternWorker = new Worker('tern-worker.js');
 
 var ternCompleter = {
-  getCompletions: function (editor, session, pos, prefix, callback) {
+  getCompletions: function(editor, session, pos, prefix, callback) {
     // Konversi posisi cursor ke Tern format
     var cursor = editor.getCursorPosition();
     var end = editor.session.doc.positionToIndex(cursor);
-
+    
     // listen response sekali
     function handleMsg(e) {
       if (!e.data) return;
@@ -930,14 +911,14 @@ var ternCompleter = {
           .filter(c => c.name) // buang yang tidak ada name
           .map(c => ({
             value: c.name,
-            meta: c.type || 'tern',
+            
           }));
         callback(null, completions);
       }
       ternWorker.removeEventListener('message', handleMsg);
     }
     ternWorker.addEventListener('message', handleMsg);
-
+    
     // kirim request ke worker
     ternWorker.postMessage({
       type: 'completion',
@@ -950,6 +931,7 @@ var ternCompleter = {
 // global reference tooltip bawaan Ace
 let tooltip = editor.container.querySelector('.ace_tooltip');
 let tooltipHideTimeout = null;
+
 function hideTooltip() {
   if (tooltip) {
     //bagian sini jika gw remove bisa hilang tapi tooltip yang di () hilang, dan jika hanya innerHtml = '' itu ngk membuathkan hasil
@@ -963,56 +945,56 @@ editor.selection.on('changeCursor', hideTooltip);
 // editor.getSession().on('change', hideTooltip);
 
 // event untuk ) baru
-editor.getSession().on('change', function (e) {
+editor.getSession().on('change', function(e) {
   const code = editor.getValue();
   const cursor = editor.getCursorPosition();
   const line = editor.session.getLine(cursor.row);
-
+  
   // hide tooltip kalau line tidak ada ')'
   if (!line.includes(')')) return hideTooltip();
-
+  
   const end = editor.session.doc.positionToIndex(cursor);
-
+  
   // function handleTooltip(e) {
   //     const t = e.data.tooltip;
   //     if (!t || !t.exprName) return hideTooltip();
-
+  
   //     const funcName = t.exprName;
   //     const info = t.doc || t.type || ""
-
+  
   //     tooltip.innerHTML = info.replace(
   //         new RegExp(`\\b${funcName}\\b`, 'g'),
   //         `<span style="color:#e06c6b;font-weight:bold">${funcName}</span>`
   //     );
-
+  
   //     const curPos = editor.getCursorPosition();
   //     const coords = editor.renderer.textToScreenCoordinates(curPos.row, curPos.column);
   //     tooltip.style.left = coords.pageX + 'px';
   //     tooltip.style.top = (coords.pageY + 20) + 'px';
   //     tooltip.style.display = 'block';
-
+  
   //     ternWorker.removeEventListener("message", handleTooltip);
   // }
-
+  
   // pastikan listener hanya sekali
-
+  
   function handleTooltip(e) {
     const t = e.data.tooltip;
     if (!t || !t.exprName) return hideTooltip();
-
+    
     // cek posisi cursor sekarang
     const curPos = editor.getCursorPosition();
     const line = editor.session.getLine(curPos.row);
     if (!line.includes(')')) return hideTooltip(); // kalau cursor udah pindah, jangan tampilkan
-
+    
     const funcName = t.exprName;
     const info = t.doc || t.type || '';
-
+    
     tooltip.innerHTML = info.replace(
       new RegExp(`\\b${funcName}\\b`, 'g'),
       `<span style="color:#e06c6b;font-weight:bold">${funcName}</span>`,
     );
-
+    
     const coords = editor.renderer.textToScreenCoordinates(
       curPos.row,
       curPos.column,
@@ -1020,19 +1002,19 @@ editor.getSession().on('change', function (e) {
     tooltip.style.left = coords.pageX + 'px';
     tooltip.style.top = coords.pageY + 30 + 'px';
     tooltip.style.display = 'block';
-
+    
     ternWorker.removeEventListener('message', handleTooltip);
   }
-
+  
   ternWorker.addEventListener('message', handleTooltip, { once: true });
-
+  
   // add file dulu kalau perlu
   ternWorker.postMessage({
     type: 'addFile',
     name: 'file1.js',
     text: code,
   });
-
+  
   // baru request tooltip
   ternWorker.postMessage({
     type: 'tooltip',
@@ -1043,138 +1025,70 @@ editor.getSession().on('change', function (e) {
 
 // global reference ke tooltip aktif
 let activeTooltip = null;
-editor.selection.on('changeCursor', function () {
+editor.selection.on('changeCursor', function() {
   const tooltip = editor.container.querySelector('.ace_tooltip');
   if (tooltip) tooltip.style.display = 'none';
 });
 
 langTools.addCompleter(ternCompleter);
 
+
+// Daftar event DOM
+const domEvents = [
+  "click", "dblclick", "mousedown", "mouseup",
+  "mousemove", "mouseenter", "mouseleave",
+  "keydown", "keyup", "keypress",
+  "touchstart", "touchend", "touchmove"
+];
+
+
+const aa = "aa"
+
+
+// Custom completer
+const eventCompleter = {
+  getCompletions: function(editor, session, pos, prefix, callback) {
+    const line = session.getLine(pos.row);
+    const col = pos.column;
+    
+    // Cari "addEventListener(" di baris
+    const regex = /addEventListener\s*\(\s*(['"])([^'"]*)$/;
+    const match = line.slice(0, col).match(regex);
+    
+    if (match) {
+      // cursor berada di dalam parameter pertama
+      callback(null, domEvents.map(e => ({
+        caption: e,
+        value: e,
+        meta: "",
+        score: 999999999
+      })));
+    } else {
+      callback(null, []);
+    }
+  }
+};
+
+// Pasang ke editor
+//editor.completers = [eventCompleter];
+langTools.addCompleter(eventCompleter)
+
+
 // === kunci biar popup muncul setelah titik ===
-editor.commands.on('afterExec', function (e) {
+editor.commands.on('afterExec', function(e) {
   if (e.command.name === 'insertstring' && e.args === '.') {
     editor.execCommand('startAutocomplete');
   }
 });
 
-// Buat Ace editor
 
-// const worker = new Worker('tern-worker.js');
-// const langTools = ace.require('ace/ext/language_tools');
 
-// // Pastikan allFuncsFromTern sudah terisi dari worker Tern
-// let allFuncsFromTern = [];
 
-// // Satu-satunya tempat di mana kita memproses data dari worker
-// worker.onmessage = function (e) {
-//   const resp = e.data;
-//   if (!resp || !resp.completions) return;
-//   // Simpan data fungsi yang lengkap untuk digunakan di afterExec
-//   allFuncsFromTern = resp.completions;
-// };
 
-// editor.setValue(`
-//   function addCommand(key) {
-//     return key
-//   }
-
-//   const data = ""
-//   `, -1)
-
-// // Satu-satunya completer utama untuk semua autocompletion
-// const mainCompleter = {
-//   getCompletions: function(editor, session, pos, prefix, callback) {
-//     if (!prefix) return callback(null, []);
-
-//     const completionsFromTern = allFuncsFromTern
-//       .filter(c => c.name.startsWith(prefix)) // filter prefix
-//       .map(c => ({
-//         caption: c.name,
-//         value: c.name,
-//         meta: 'Tern',
-//         type: c.type,         // string, number, function, object
-//         docHTML: `<b>${c.name}(${(c.argNames||[]).join(', ')})</b><br>${c.type || 'any'}<br>${c.doc || ''}`
-//       }));
-
-//     // Smart filter berdasarkan tipe: contoh kalau prefix punya tipe string, ambil hanya method string
-//     const token = session.getTokenAt(pos.row, pos.column-1);
-//     let currentType = 'any';
-
-//     if (token && token.value) {
-//       const variable = token.value;
-//       const foundVar = allFuncsFromTern.find(f => f.name === variable);
-//       if (foundVar) currentType = foundVar.type;
-//     }
-
-//     const filtered = completionsFromTern.filter(c => {
-//       if (currentType === 'any') return true;
-//       // contoh: jika tipe string, ambil method string
-//       return c.type && c.type.includes(currentType);
-//     });
-
-//     callback(null, filtered);
-//   },
-
-//   getDocTooltip: function(item) {
-//     if (item.docHTML) return item.docHTML;
-//   }
-// };
-
-// langTools.addCompleter(mainCompleter);
-
-// // Satu-satunya listener afterExec
-// editor.commands.on('afterExec', function (e) {
-//   const code = editor.getValue();
-//   const pos = editor.getCursorPosition();
-//   const offset = editor.session.doc.positionToIndex(pos);
-
-//   // Memicu Tern Worker untuk menganalisis kode secara keseluruhan
-//   if (e.command.name === 'insertstring' && (e.args === '.' || e.args === '(' || e.args === ' ' || e.args === ')')) {
-//     worker.postMessage({ type: 'completion', code, pos: offset });
-//   }
-
-//   // Menampilkan tooltip saat karakter '(' diketik
-//   if (e.command.name === 'insertstring' && e.args === '(') {
-//     // Tutup popup autocomplete yang mungkin masih ada
-//     const langTools = ace.require('ace/ext/language_tools');
-//     if (langTools.popup && langTools.popup.isOpen) {
-//       langTools.popup.hide();
-//     }
-
-//     const line = editor.session.getLine(pos.row);
-//     const match = line.slice(0, pos.column).match(/([a-zA-Z_$][\w$]*(?:\.[a-zA-Z_$][\w$]*)*)\s*\($/);
-//     if (!match) return;
-//     const funcName = match[1];
-
-//     const allFuncsCombined = allFuncsFromTern.concat(
-//       Object.getOwnPropertyNames(window).map(name => ({
-//         name: name,
-//         argNames: [],
-//         type: 'any',
-//         doc: 'Global browser function'
-//       }))
-//     );
-
-//     const funcInfo = allFuncsCombined.find(f => f.name === funcName);
-//     if (!funcInfo) return;
-
-//     const docHtml = `<b>${funcInfo.name}(${(funcInfo.argNames || []).join(', ')})</b><br> ${funcInfo.type || 'any'}<br>${funcInfo.doc || ''}`;
-
-//     const coords = editor.renderer.textToScreenCoordinates(pos.row, pos.column);
-//     tooltip.style.left = coords.pageX + "px";
-//     tooltip.style.top = coords.pageY + 20 + "px";
-
-//     const hideTooltip = () => {
-//         tooltip.remove();
-//         editor.removeEventListener("change", hideTooltip);
-//     };
-//     editor.addEventListener("change", hideTooltip);
-//   }
-// });
 
 async function addValue() {
   try {
-    const response = await fetch('http://127.0.0.1:5500/editor.js');
+    const response = await fetch('http://localhost:7700/editor.js');
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -1184,18 +1098,20 @@ async function addValue() {
     console.error('Error fetching data:', e);
   }
 }
+addValue()
+
 function updateEditorMaxLines() {
   const parent = document.getElementById('editor').parentElement;
-
+  
   // pastikan editor udah render biar lineHeight valid
   editor.resize(true);
-
+  
   // ambil tinggi parent container
   const parentHeight = parent.clientHeight;
-
+  
   // ambil lineHeight aktual dari Ace
   const lineHeight = editor.renderer.lineHeight;
-
+  
   // hitung jumlah baris yang muat
   const lines = Math.floor(parentHeight / lineHeight);
   console.log(lines);
@@ -1204,7 +1120,7 @@ function updateEditorMaxLines() {
     minLines: lines,
     //  maxLines: lines,
   });
-
+  
   editor.resize(true);
 }
 
@@ -1216,7 +1132,7 @@ function setEditorFontSize(size) {
 }
 
 // awal
-setEditorFontSize(18);
+setEditorFontSize(15);
 
 // update kalau parent berubah ukuran
 window.addEventListener('resize', updateEditorMaxLines);
