@@ -1,15 +1,27 @@
 const editor = ace.edit('editor');
-const Obje = {
-  commands: {
-    on: function on() {},
-  },
-};
+class Editor {
+  constructor(container) {
+    this.container = container || null
+    this.defaultOptions(this)
+    this.name = "er"
+  }
+  defaultOptions() {
+    
+  }
+  
 
-Obje.commands.on(); //contoh pemanggilan on ngk ke hilight// jika on() di hapus dan di ganti commands() baru bisa!! kemungkinan bagian rule property belum di atur ya?
-// Inisialisasi TouchCursors seperti SPCK Editor
+}
+
+
 editor.renderer.$keepTextAreaAtCursor = false;
 
-function test() {}
+editor.renderer.setAnimatedScroll(false);
+editor.setOptions({
+  hScrollBarAlwaysVisible: false,
+  vScrollBarAlwaysVisible: false,
+  highlightActiveLine: true,
+  highlightGutterLine: true
+});
 
 class TouchCursors {
   constructor(editor, options = {}) {
@@ -558,9 +570,10 @@ class TouchCursors {
     this.hideCursor(this.caretCursor);
   }
 }
-
+// Editor.prototype.$touchCursor = new TouchCursors("")
 // Inisialisasi dan aktifkan TouchCursors pada editor Ace Anda
 const touchCursors = new TouchCursors(editor, { keepTextAreaAtCursor: false });
+const ee = new Editor()
 
 // Sembunyikan cursor saat editor blur
 editor.on('blur', () => {
@@ -574,371 +587,8 @@ editor.on('focus', () => {
   touchCursors.showCursor(touchCursors.rightCursor);
 });
 
-// Misal kita pake mode javascript bawaan sebagai basis
-const JavaScriptMode = ace.require('ace/mode/javascript').Mode;
-const TextHighlightRules = ace.require(
-  'ace/mode/javascript_highlight_rules',
-).JavaScriptHighlightRules;
-
-const CustomHighlightRules = function () {
-  // Panggil rules asli dulu
-  TextHighlightRules.call(this);
-  const comments = this.$rules.comment;
-  const method_name = '[a-zA-Z\\$_\u00a1-\uffff][a-zA-Z\\d\\$_\u00a1-\uffff]*';
-  // Tambahin custom token
-  this.$rules['object_class'] = [];
-  // daftar bawaan JS yg mau dikecualikan
-  const builtins = [
-    'Window',
-    'Document',
-    'Math',
-    'JSON',
-    'Array',
-    'Object',
-    'String',
-    'Number',
-    'Boolean',
-    'Function',
-    'Error',
-    'RegExp',
-    'Date',
-    'Promise',
-    'Set',
-    'Map',
-    'WeakSet',
-    'WeakMap',
-    'Symbol',
-    'BigInt',
-    'Reflect',
-    'Proxy',
-    'Intl',
-    'NaN',
-  ];
-
-  // gabung jadi regex
-  const builtinsRe = '\\b(?:' + builtins.join('|') + ')\\b';
-
-  // tambahin rule utk entity.name.class tapi exclude builtins
-  this.$rules['no_regex'].unshift({
-    token: 'entity.name.class',
-    // cari huruf besar di awal, tapi bukan salah satu dari builtins
-    regex: '(?!' + builtinsRe + ')\\b[A-Z][A-Za-z0-9_$]*\\b',
-  });
-
-  // terus taruh rule builtins agar diwarnain beda (support.class/builtin)
-  this.$rules['no_regex'].unshift({
-    token: 'variable.language',
-    regex: builtinsRe,
-  });
-
-  this.$rules['no_regex'].unshift(
-    /**
-     * 🔹 1️⃣ Method / Function Call Langsung
-     * -------------------------------------
-     * 💡 Contoh: myFunc(), calculate(), init()
-     *
-     * 🏷 Token:
-     *   • "entity.name.function" → nama function
-     *   • "text"                 → spasi sebelum tanda kurung
-     *   • "paren.lparen"         → tanda "("
-     *
-     * 📝 Regex: "(" + method_name + ")(\\s*)(\\()"
-     * 🔄 Next State: "default_parameter" → parsing argument function
-     */
-    {
-      token: ['entity.name.function', 'text', 'paren.lparen'],
-      regex: '(' + method_name + ')(\\s*)(\\()',
-      next: 'default_parameter',
-    },
-
-    /**
-     * 🔹 2️⃣ Property Chain Dot
-     * ------------------------
-     * 💡 Contoh: obj.prop.on(), data.user.update()
-     *
-     * ⚙️ Fungsi:
-     *   • Menandai operator titik "." pada property chain
-     *   • Digunakan untuk identifikasi function terakhir di chain
-     *
-     * 📝 Regex: /[.](?![.])/ → hanya single dot, menghindari ".." atau spread operator
-     */
-    {
-      token: 'punctuation.operator',
-      regex: /[.](?![.])/,
-    },
-
-    /**
-     * 🔹 3️⃣ Sementara Dimatikan: Highlight Explicit Function Call di Property Chain
-     * ---------------------------------------------------------------------------
-     * 💡 Contoh yang ingin ditangkap: obj.commands.on()
-     *
-     * ⚠️ Alasannya dimatikan:
-     *   • Regex lama terlalu spesifik dan rumit
-     *   • Terbatas pada beberapa function saja
-     *   • Diganti pendekatan lebih fleksibel: single dot + logika tambahan
-     *
-     * 🏷 Token sebelumnya:
-     *   • "punctuation.operator" → dot
-     *   • "support.function"      → nama function di chain
-     *   • "text"                  → spasi
-     *   • "paren.lparen"          → tanda "("
-     *
-     * 📝 Regex: "(\\.)" + "(" + method_name + ")(\\s*)(\\()"
-     * 🔄 Next State: "function_arguments" → pindah ke parsing arguments
-     */
-    // {
-    //   token: [
-    //     "punctuation.operator",
-    //     "support.function",
-    //     "text",
-    //     "paren.lparen"
-    //   ],
-    //   regex: "(\\.)" + "(" + method_name + ")(\\s*)(\\()",
-    //   next: "function_arguments"
-    // },
-  );
-
-  this.$rules['no_regex'].unshift({
-    token: 'keyword',
-    regex: '\\b(class|constructor|if|else|extends)\\b',
-    next: 'object_class',
-  });
-  this.$rules['object_class'].unshift(
-    ...comments,
-    {
-      token: 'text',
-      regex: '\\s+',
-    },
-    {
-      token: 'entity.name.class',
-      regex: '(' + method_name + ')',
-      next: 'no_regex',
-    },
-    {
-      token: 'punctuation.operator',
-      regex: '$',
-    },
-    {
-      token: 'empty',
-      regex: '',
-      next: 'no_regex',
-    },
-  );
-
-  this.$rules['property'].unshift({
-    token: 'constant.language.boolean',
-    regex: '\\b(?:true|false)\\b',
-  });
-
-  this.$rules['property'] = this.$rules['property'].filter(
-    rule =>
-      rule.token !== 'support.function.dom' &&
-      rule.token !== 'support.constant',
-  );
-};
-
-// Warisi prototype rules asli
-CustomHighlightRules.prototype = Object.create(TextHighlightRules.prototype);
-CustomHighlightRules.prototype.constructor = CustomHighlightRules;
-
-// Buat mode custom yang pakai rules custom
-const CustomJavaScriptMode = function () {
-  JavaScriptMode.call(this);
-  this.HighlightRules = CustomHighlightRules;
-};
-
-CustomJavaScriptMode.prototype = Object.create(JavaScriptMode.prototype);
-CustomJavaScriptMode.prototype.constructor = CustomJavaScriptMode;
-
-// Apply mode ke editor
-editor.session.setMode(new CustomJavaScriptMode());
-
-// Fungsi helper bikin mode custom
-
-
-class Mode {
-  constructor(mode) {
-    this.mode = mode || "text"
-  }
-  js() {
-    const JavaScriptMode = ace.require('ace/mode/javascript').Mode;
-    const TextHighlightRules = ace.require(
-      'ace/mode/javascript_highlight_rules',
-    ).JavaScriptHighlightRules;
-  }
-  html() {
-
-  }
-}
-
-console.log(new Mode());
-// class Mode {
-//   constructor() {
-
-//   }
-//  static js() {
-//     const JavaScriptMode = ace.require('ace/mode/javascript').Mode;
-//     const TextHighlightRules = ace.require(
-//       'ace/mode/javascript_highlight_rules',
-//     ).JavaScriptHighlightRules;
-//   }
-//  html() {}
-// }
-function jsMode() {
-  const comments = this.$rules.comment;
-  const method_name = '[a-zA-Z\\$_\u00a1-\uffff][a-zA-Z\\d\\$_\u00a1-\uffff]*';
-  // Tambahin custom token
-  this.$rules['object_class'] = [];
-  // daftar bawaan JS yg mau dikecualikan
-  const builtins = [
-    'Window',
-    'Document',
-    'Math',
-    'JSON',
-    'Array',
-    'Object',
-    'String',
-    'Number',
-    'Boolean',
-    'Function',
-    'Error',
-    'RegExp',
-    'Date',
-    'Promise',
-    'Set',
-    'Map',
-    'WeakSet',
-    'WeakMap',
-    'Symbol',
-    'BigInt',
-    'Reflect',
-    'Proxy',
-    'Intl',
-    'NaN',
-  ];
-
-  // gabung jadi regex
-  const builtinsRe = '\\b(?:' + builtins.join('|') + ')\\b';
-
-  // tambahin rule utk entity.name.class tapi exclude builtins
-  this.$rules['no_regex'].unshift({
-    token: 'entity.name.class',
-    // cari huruf besar di awal, tapi bukan salah satu dari builtins
-    regex: '(?!' + builtinsRe + ')\\b[A-Z][A-Za-z0-9_$]*\\b',
-  });
-
-  // terus taruh rule builtins agar diwarnain beda (support.class/builtin)
-  this.$rules['no_regex'].unshift({
-    token: 'variable.language',
-    regex: builtinsRe,
-  });
-
-  this.$rules['no_regex'].unshift(
-    /**
-     * 🔹 1️⃣ Method / Function Call Langsung
-     * -------------------------------------
-     * 💡 Contoh: myFunc(), calculate(), init()
-     *
-     * 🏷 Token:
-     *   • "entity.name.function" → nama function
-     *   • "text"                 → spasi sebelum tanda kurung
-     *   • "paren.lparen"         → tanda "("
-     *
-     * 📝 Regex: "(" + method_name + ")(\\s*)(\\()"
-     * 🔄 Next State: "default_parameter" → parsing argument function
-     */
-    {
-      token: ['entity.name.function', 'text', 'paren.lparen'],
-      regex: '(' + method_name + ')(\\s*)(\\()',
-      next: 'default_parameter',
-    },
-
-    /**
-     * 🔹 2️⃣ Property Chain Dot
-     * ------------------------
-     * 💡 Contoh: obj.prop.on(), data.user.update()
-     *
-     * ⚙️ Fungsi:
-     *   • Menandai operator titik "." pada property chain
-     *   • Digunakan untuk identifikasi function terakhir di chain
-     *
-     * 📝 Regex: /[.](?![.])/ → hanya single dot, menghindari ".." atau spread operator
-     */
-    {
-      token: 'punctuation.operator',
-      regex: /[.](?![.])/,
-    },
-
-    /**
-     * 🔹 3️⃣ Sementara Dimatikan: Highlight Explicit Function Call di Property Chain
-     * ---------------------------------------------------------------------------
-     * 💡 Contoh yang ingin ditangkap: obj.commands.on()
-     *
-     * ⚠️ Alasannya dimatikan:
-     *   • Regex lama terlalu spesifik dan rumit
-     *   • Terbatas pada beberapa function saja
-     *   • Diganti pendekatan lebih fleksibel: single dot + logika tambahan
-     *
-     * 🏷 Token sebelumnya:
-     *   • "punctuation.operator" → dot
-     *   • "support.function"      → nama function di chain
-     *   • "text"                  → spasi
-     *   • "paren.lparen"          → tanda "("
-     *
-     * 📝 Regex: "(\\.)" + "(" + method_name + ")(\\s*)(\\()"
-     * 🔄 Next State: "function_arguments" → pindah ke parsing arguments
-     */
-    // {
-    //   token: [
-    //     "punctuation.operator",
-    //     "support.function",
-    //     "text",
-    //     "paren.lparen"
-    //   ],
-    //   regex: "(\\.)" + "(" + method_name + ")(\\s*)(\\()",
-    //   next: "function_arguments"
-    // },
-  );
-
-  this.$rules['no_regex'].unshift({
-    token: 'keyword',
-    regex: '\\b(class|constructor|if|else|extends)\\b',
-    next: 'object_class',
-  });
-  this.$rules['object_class'].unshift(
-    ...comments,
-    {
-      token: 'text',
-      regex: '\\s+',
-    },
-    {
-      token: 'entity.name.class',
-      regex: '(' + method_name + ')',
-      next: 'no_regex',
-    },
-    {
-      token: 'punctuation.operator',
-      regex: '$',
-    },
-    {
-      token: 'empty',
-      regex: '',
-      next: 'no_regex',
-    },
-  );
-
-  this.$rules['property'].unshift({
-    token: 'constant.language.boolean',
-    regex: '\\b(?:true|false)\\b',
-  });
-
-  this.$rules['property'] = this.$rules['property'].filter(
-    rule =>
-      rule.token !== 'support.function.dom' &&
-      rule.token !== 'support.constant',
-  );
-}
-
+editor.session.setMode(BranchModeHtml.mode());
+addValue('http://127.0.0.1:5500/editor.html'|| 'http://localhost:7700/');
 //const editor ada di atas
 const defaultSettings = {
   //mode: 'ace/mode/javascript',
@@ -1256,9 +906,9 @@ editor.commands.on('afterExec', function (e) {
 });
 
 // load file contoh
-async function addValue() {
+async function addValue(url = "") {
   try {
-    const response = await fetch('http://127.0.0.1:5500/editor.html');
+    const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -1268,7 +918,7 @@ async function addValue() {
     console.error('Error fetching data:', e);
   }
 }
-addValue();
+
 
 // fungsi untuk mengatur maxLines sesuai tinggi Parent
 function updateEditorMaxLines() {
