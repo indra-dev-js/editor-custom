@@ -5,7 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>editor</title>
     <link rel="stylesheet" href="style.css" />
-  <style>
+    <!-- Masukin di <head> -->
+
+      <script>
+        Window
+        console.log('ace editor loaded' );
+  if (typeof window !== 'undefined') {
+    window.ace = {};    
+  window.ace.config = {};
+  window.ace.config.set = function() {};
+  window.ace.require = function(module) {
+    if (module === 'ace/lib/dom') {
+      return {
+        importCssString: function() {},
+      };
+    }
+    return {};
+  };
+  }
+      </script>
+<style>
 
   /* cyrillic-ext */
 @font-face {
@@ -184,18 +203,86 @@
 .ace_tooltip.ace_dark.ace-github-dark.ace_gutter-tooltip {
   background-color: #121216 !important;
 }
+
+#editor {
+  overflow: hidden !important;
+}
+
+.ace_content {
+  animation: none !important;
+  transition: none !important;
+  overflow-y: visible !important;
+}
+
+.ace_scrollbar-v {
+  background-color: #fff;
+  display: none !important;
+}
+/* Scrollbar vertikal */
+.ace_scrollbar-v::-webkit-scrollbar {
+  width: 10px;
+}
+.ace_scrollbar-inner {
+  background-color: blue !important;
+  z-index: 0 !important;
+}
+.ace_scrollbar-v::-webkit-scrollbar-track {
+  background: #63636348;
+  border-radius: 6px;
+}
+
+.ace_scrollbar-v::-webkit-scrollbar-thumb {
+  background: #848484; /* Thumb color */
+cursor: pointer;
+   /* Space antara thumb & track */
+}
+
+.ace_scrollbar-v::-webkit-scrollbar-thumb:hover {
+  background: #555; /* Hover effect */
+}
+
+/* Scrollbar horizontal */
+.ace_scrollbar-h::-webkit-scrollbar {
+  height: 10px;
+}
+
+.ace_scrollbar-h::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border-radius: 6px;
+}
+
+.ace_scrollbar-h::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 6px;
+  border: 2px solid #f0f0f0;
+}
+
+.ace_scrollbar-h::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+.ace_scroller {
+  right: 0 !important;
+  z-index: 9999999999999 !important;
+}
       /*# sourceURL=ace/css/ace-github-dark */
     </style>
   </head>
   <body>
     <div class="container"><div id="editor"></div></div>
-    <script src="./ace/build/src/ace.js"></script>
-    <script src="./ace/build/src/keybinding-sublime.js"></script>
-    <script src="./ace/build/src/ext-language_tools.js"></script>
+  
+   <script src="./ace-builds/src-noconflict/ace.js"></script>
+    <script src="./ace-builds/src-noconflict/keybinding-sublime.js"></script></cript>
+    <script src="./ace-builds/src-noconflict/ext-language_tools.js"></script>
 
-    <!-- <script src="ace-builds/src/ace.js"></script>
-  <script src="ace-builds/src/ext-language_tools.js"></script> -->
+
+
+  
+<!-- <script src="https://cdn.jsdelivr.net/npm/typescript@5.3.3/lib/typescript.js"></script> -->
+   <!-- <script src="./ace-builds/src-noconflict/mode-javascript.js"></script> -->
+   <script src="./ace-builds/src-noconflict/mode-javascript.js"></script>
+   <script src="./ace-builds/src-noconflict/mode-html.js"></script>
+   <script src="branch_mode_js.js"></script>
     <script type="text/javascript" src="./editor.js"></script>
   </body>
 </html>
-
