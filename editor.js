@@ -619,7 +619,7 @@ Editor.prototype.ternCompleter = {
         const completions = resp.completions
           .filter(c => c.name)
           .map(c => {
-            console.log(c.type);
+            // console.log(c.type);
 
             let item = {
               value: c.name,
@@ -645,7 +645,7 @@ Editor.prototype.ternCompleter = {
             } else {
               item.type = 'property'; // fallback default
             }
-            console.log(c);
+            // console.log(c);
             return item;
           });
         callback(null, completions);
@@ -677,7 +677,230 @@ Editor.prototype.initTernTooltip = function initTernTooltip() {
   // sembunyikan tooltip saat cursor pindah
   editor.selection.on('changeCursor', hideTooltip);
 
-  // listen perubahan text
+  function highlightTooltip(info, funcName, params = []) {
+    // bikin regex untuk param user
+    const paramRegex = params.length
+      ? new RegExp(`\\b(${params.join('|')})\\b`, 'g')
+      : null;
+
+    // daftar rules highlight
+    const rules = [
+      {
+        regex: new RegExp(`\\b${funcName}\\b`, 'g'),
+        wrap: m => `<span class="ace_support ace_function">${m}</span>`,
+      },
+      {
+        regex: /\b(listener|this|ev|evt|options|type)\b/g,
+        wrap: m => `<span class="ace_variable ace_parameter">${m}</span>`,
+      },
+      {
+        regex: /\b(void|keyof|boolean|any|string|number)\b/g,
+        wrap: m => `<span class="ace_keyword">${m}</span>`,
+      },
+    ];
+
+    // tambahin rule highlight untuk param user kalau ada
+    if (paramRegex) {
+      rules.push({
+        regex: paramRegex,
+        wrap: m =>
+          `<span class="ace_variable ace_parameter" style="text-decoration: underline;">${m}</span>`,
+      });
+    }
+
+    // jalankan sequential
+    let highlighted = info;
+    for (const { regex, wrap } of rules) {
+      highlighted = highlighted.replace(regex, wrap);
+    }
+    return highlighted;
+  }
+
+  // helper: hapus komentar & string supaya 'return' di komentar/string ngga ngaruh
+  function stripCommentsAndStrings(code = '') {
+    // hapus komentar dulu
+    let noComments = code.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
+    // hapus string literal ('', "", ``) sederhana (tidak sempurna 100% untuk semua edgecases, tapi cukup untuk case umum)
+    noComments = noComments.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, '');
+    return noComments;
+  }
+
+  // helper: cari posisi penutup brace matching dari posisi buka '{'
+  function findMatchingBrace(code, startIndex) {
+    let depth = 0;
+    for (let i = startIndex; i < code.length; i++) {
+      const ch = code[i];
+      if (ch === '{') depth++;
+      else if (ch === '}') {
+        depth--;
+        if (depth === 0) return i;
+      }
+    }
+    return -1;
+  }
+
+  // helper: cari body fungsi luar berdasarkan nama fungsi (support: function name, var/let/const assignment, arrow)
+  function findOuterFunctionBody(cleanCode, funcName) {
+    if (!funcName) return null;
+    const patterns = [
+      new RegExp(`\\bfunction\\s+${funcName}\\s*\\([^)]*\\)\\s*{`, 'm'),
+      new RegExp(`\\b${funcName}\\s*=\\s*function\\s*\\([^)]*\\)\\s*{`, 'm'),
+      new RegExp(`\\b${funcName}\\s*=\\s*\\([^)]*\\)\\s*=>\\s*{`, 'm'),
+    ];
+
+    for (const pat of patterns) {
+      const m = pat.exec(cleanCode);
+      if (m && typeof m.index === 'number') {
+        const braceStart = cleanCode.indexOf('{', m.index);
+        if (braceStart >= 0) {
+          const braceEnd = findMatchingBrace(cleanCode, braceStart);
+          if (braceEnd > braceStart) {
+            return cleanCode.slice(braceStart + 1, braceEnd);
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  // helper: dari outerBody cari inner function yang di-return (function() { ... } atau (...) => { ... })
+  function findReturnedInnerFunctionBody(outerBody) {
+    if (!outerBody) return null;
+
+    // cari "return function (...) {"
+    let pat = /return\s+function\s*(?:\w*\s*)?\([^)]*\)\s*{/m;
+    let m = pat.exec(outerBody);
+    if (m && typeof m.index === 'number') {
+      const braceStart = outerBody.indexOf('{', m.index);
+      if (braceStart >= 0) {
+        const braceEnd = findMatchingBrace(outerBody, braceStart);
+        if (braceEnd > braceStart) {
+          return outerBody.slice(braceStart + 1, braceEnd);
+        }
+      }
+    }
+
+    // cari "return (...) => {"
+    pat = /return\s*\([^)]*\)\s*=>\s*{/m;
+    m = pat.exec(outerBody);
+    if (m && typeof m.index === 'number') {
+      const braceStart = outerBody.indexOf('{', m.index);
+      if (braceStart >= 0) {
+        const braceEnd = findMatchingBrace(outerBody, braceStart);
+        if (braceEnd > braceStart) {
+          return outerBody.slice(braceStart + 1, braceEnd);
+        }
+      }
+    }
+
+    // fallback: cari "return {" langsung (anonymous returned object or arrow implicit) — skip
+    return null;
+  }
+
+  // main: parse fn signature string (raw) dan buat formatted result + paramNames
+  function formatFnString(raw, funcName, sourceCode = '') {
+    if (!raw) return { formatted: '', paramNames: [] };
+
+    // non-greedy supaya '-> fn()' ke-split bener
+    const match = raw.match(/^fn\((.*?)\)\s*(?:->\s*(.*))?$/);
+    if (!match) return { formatted: raw, paramNames: [] };
+
+    const paramsStr = (match[1] || '').trim();
+    let returnType = match[2] ? match[2].trim() : '';
+
+    // parse params
+    const params = paramsStr
+      ? paramsStr
+          .split(',')
+          .map(p => {
+            let [name, type] = p.split(':').map(s => s.trim());
+            if (!name) return null;
+            if (!type || type === '?') type = 'any'; // fallback param -> any
+            return { name, type, str: `${name}: ${type}` };
+          })
+          .filter(Boolean)
+      : [];
+
+    // === HANDLE RETURN ===
+    if (!returnType) {
+      // bersihin dulu biar gak false positive dari comment/string
+      const cleanSource = stripCommentsAndStrings(sourceCode || '');
+
+      // 🔎 cek arrow inline const fn = (...) => expr;
+      const arrowRegex = new RegExp(
+        `\\b${funcName}\\s*=\\s*\\([^)]*\\)\\s*=>\\s*([^\\{;]+)`,
+      );
+      const arrowMatch = cleanSource.match(arrowRegex);
+
+      if (arrowMatch) {
+        returnType = 'any'; // inline arrow expression selalu return value
+      } else {
+        const outerBody = findOuterFunctionBody(cleanSource, funcName);
+        if (outerBody) {
+          const innerBody = findReturnedInnerFunctionBody(outerBody);
+          if (innerBody != null) {
+            const hasReturnInner = /\breturn\b/.test(innerBody);
+            returnType = hasReturnInner ? 'any' : 'void';
+          } else {
+            returnType = /\breturn\b/.test(outerBody) ? 'any' : 'void';
+          }
+        } else {
+          returnType = /\breturn\b/.test(cleanSource) ? 'any' : 'void';
+        }
+      }
+    } else if (returnType === '?') {
+      returnType = 'any';
+    } else if (returnType.startsWith('fn(')) {
+      // return-nya adalah function lagi -> parse recursively
+      const innerMatch = returnType.match(/^fn\((.*?)\)\s*(?:->\s*(.*))?$/);
+      if (innerMatch) {
+        const innerParamsStr = (innerMatch[1] || '').trim();
+        const innerParams = innerParamsStr
+          ? innerParamsStr
+              .split(',')
+              .map(p => {
+                const [n, t] = p.split(':').map(s => s.trim());
+                const type = !t || t === '?' ? 'any' : t;
+                return `${n}: ${type}`;
+              })
+              .filter(Boolean)
+          : [];
+
+        let innerRet = innerMatch[2] ? innerMatch[2].trim() : '';
+
+        if (!innerRet) {
+          // try to detect inner function's return by scanning sourceCode (best-effort)
+          const cleanSource = stripCommentsAndStrings(sourceCode || '');
+          const outerBody = findOuterFunctionBody(cleanSource, funcName);
+          const innerBody = findReturnedInnerFunctionBody(outerBody);
+          if (innerBody != null) {
+            innerRet = /\breturn\b/.test(innerBody) ? 'any' : 'void';
+          } else {
+            // fallback: unknown -> choose 'any' (safer when we can't determine)
+            innerRet = 'any';
+          }
+        } else if (innerRet === '?') {
+          innerRet = 'any';
+        } else if (innerRet.startsWith('fn(')) {
+          // nested deeper: recursively format innerRet
+          const deeper = formatFnString(innerRet, '', sourceCode);
+          // deeper.formatted -> "(: ...): type" so convert to arrow
+          innerRet = deeper.formatted
+            .replace(/^[^(]*\(/, '(')
+            .replace(/\):/, ') =>');
+        }
+
+        returnType = `(${innerParams.join(', ')}) => ${innerRet}`;
+      }
+    }
+
+    const formatted = `${funcName}(${params
+      .map(p => p.str)
+      .join(', ')}): ${returnType}`;
+    return { formatted, paramNames: params.map(p => p.name) };
+  }
+
+  // console.log(formatFnString('fn(name: ?) -> fn()', 'addUser'));
   editor.getSession().on('change', e => {
     const code = editor.getValue();
     const cursor = editor.getCursorPosition();
@@ -695,12 +918,26 @@ Editor.prototype.initTernTooltip = function initTernTooltip() {
       if (!line.includes(')')) return hideTooltip();
 
       const funcName = t.exprName;
+      // const info = t.doc || t.type || '';
+      // tooltip.innerHTML = highlightTooltip(info, funcName);
+
       const info = t.doc || t.type || '';
 
-      tooltip.innerHTML = info.replace(
-        new RegExp(`\\b${funcName}\\b`, 'g'),
-        `<span style="color:#e06c6b;font-weight:bold">${funcName}</span>`,
-      );
+      if (t.doc) {
+        // bawaan native
+        tooltip.innerHTML = highlightTooltip(t.doc, t.exprName);
+      } else if (t.type) {
+        // user-defined
+        const { formatted, paramNames } = formatFnString(
+          t.type,
+          t.exprName,
+          code,
+        );
+        tooltip.innerHTML = highlightTooltip(formatted, t.exprName, paramNames);
+        // console.log('user fn:', formatted);
+      } else {
+        hideTooltip();
+      }
 
       const coords = editor.renderer.textToScreenCoordinates(
         curPos.row,
@@ -728,6 +965,105 @@ Editor.prototype.autocomplete = {
   },
 };
 
+// === DOM Completer Khusus ===
+// ====== DOM Completer khusus createElement("tag"). ======
+
+Editor.prototype.domCompleter = {
+  getCompletions: function (editor, session, pos, prefix, callback) {
+    const line = session.getLine(pos.row);
+    const beforeCursor = line.slice(0, pos.column);
+
+    // ===== Phase 1: tangkap nama tag (partial) =====
+    const tagMatch = beforeCursor.match(
+      /document\.createElement\(\s*(['"])([^\)'"]*)$/,
+    );
+
+    if (tagMatch) {
+      const partialTag = tagMatch[2];
+      console.log('Tag partial:', partialTag); // debug
+      return callback(null, []); // phase 1, jangan munculin method dulu
+    }
+
+    // ===== Phase 2: setelah dot =====
+    const dotMatch = beforeCursor.match(
+      /document\.createElement\(\s*(['"])([^\)'"]+)\1\s*\)\.([a-zA-Z0-9_$]*)$/,
+    );
+    if (!dotMatch) return callback(null, []);
+
+    const tagName = dotMatch[2];
+    const propPrefix = dotMatch[3] || '';
+    console.log('Tag detected:', tagName, 'Prefix method:', propPrefix);
+
+    let tempEl;
+    try {
+      tempEl = document.createElement(tagName);
+    } catch {
+      return callback(null, []);
+    }
+
+    const props = new Set();
+    let current = tempEl;
+    while (current) {
+      Object.getOwnPropertyNames(current).forEach(p => props.add(p));
+      current = Object.getPrototypeOf(current);
+    }
+
+    // Helper untuk tentuin tipe properti
+    function getType(val) {
+      try {
+        if (typeof val === 'function') return 'function';
+        if (val === null) return 'property';
+        if (Array.isArray(val)) return 'array';
+        if (typeof val === 'object') return 'object';
+        if (typeof val === 'boolean') return 'property';
+        if (typeof val === 'string') return 'property';
+        if (typeof val === 'number') return 'constant';
+        console.log(typeof val);
+        return typeof val; // string, number, boolean, symbol, undefined
+      } catch {
+        return 'unknown';
+      }
+    }
+
+    const completions = [...props]
+      .filter(name => name.startsWith(propPrefix))
+      .map(name => {
+        let type = 'unknown';
+        try {
+          type = getType(tempEl[name]);
+        } catch {}
+        return {
+          caption: name,
+          value: name,
+          meta: type, // function / object / string / number / etc
+          score: 10000,
+          type,
+        };
+      });
+
+    callback(null, completions);
+  },
+};
+
+// ====== Helper (kopi dari lo) - simpan kalau belum ada ======
+
+function getAllProps(obj) {
+  const props = new Set();
+  let current = obj;
+  while (current) {
+    try {
+      Object.getOwnPropertyNames(current).forEach(p => props.add(p));
+    } catch (e) {}
+    current = Object.getPrototypeOf(current);
+  }
+  return [...props];
+}
+
+// ====== Modifikasi init: daftarkan domCompleter via addCompleter & pasang afterExec trigger ======
+const _origInit = Editor.prototype.init;
+
+Editor.prototype.touchCursors = new TouchCursors();
+
 Editor.prototype.init = function init(options = {}) {
   this.editor.setOptions(this.defaultOptions());
   this.mode = BranchModeJs.mode();
@@ -738,13 +1074,12 @@ Editor.prototype.init = function init(options = {}) {
     this.autocompleteNativejs,
     this.keywordJs,
     this.bebekComplete,
+    this.domCompleter,
     this.ternCompleter,
   ]);
   this.initTernTooltip();
   window.addEventListener('resize', () => this.updateEditorMaxLines());
 };
-
-Editor.prototype.touchCursors = new TouchCursors();
 
 Editor.prototype.customsnippet = {
   getCompletions: function (editor, session, pos, prefix, callback) {
@@ -784,8 +1119,31 @@ Editor.prototype.customsnippet = {
         meta: 'debug',
         score: 99999,
       },
+      {
+        caption: 'function (anon)',
+        snippet: 'function ${1}() {\n\t${2}\n}',
+        meta: 'snippets',
+        score: 99999,
+      },
+      {
+        caption: 'function =>',
+        snippet: '() => {\n\t${1}\n}',
+        meta: 'snippets',
+        score: 99999,
+      },
+      {
+        caption: 'for (loop)',
+        snippet:
+          'for (let ${1:index} = ${1:0}; ${1:index} < ${2:array.length}; ${1:index}++) {\n\tconst element = ${2:array}[${1:index}]\n\n}',
+        meta: 'snippets',
+        score: 99999,
+      },
     ];
 
+    // for (let index = 0; index < array.length; index++) {
+    //   const element = array[index];
+
+    // }
     const filtered = snippets.filter(c => c.caption.startsWith(prefix));
     callback(null, filtered);
   },
@@ -824,7 +1182,7 @@ Editor.prototype.autocompleteNativejs = {
 
     // Dapatkan konten penuh dari editor
     const fullContent = session.getValue();
-    console.log(fullContent);
+
     // Uji keberadaan arguments
 
     const domEvents = [
@@ -889,12 +1247,52 @@ Editor.prototype.bebekComplete = {
   getCompletions: function (editor, session, pos, prefix, callback) {
     const line = session.getLine(pos.row);
     const before = line.slice(0, pos.column);
-    console.log(before);
+    console.log(line.slice(0, pos.column));
+
     const ignore = /(?:^|\s)\./; // cega jika hanya . tanpa awalan
-    //callback ke null, [] jika ighnore match
+    // //callback ke null, [] jika ighnore match
+    // sebelumnya: const ignore = /(?:^|\s)\./;
+    //document.createElement()
+    console.log(ignore.test(before));
     if (ignore.test(before)) return callback(null, []);
     else if (/('|")/.test(before)) return callback(null, []);
+    // di atas filter string!
+    //const match = str.match(/\(\s*(['"])(.*?)\1\s*\)/);
+    // if (match) {
+    //   console.log(match[2]); // → div
+    // }
 
+    session.on('change', () => {
+      const cursor = editor.getCursorPosition();
+      const line = session.getLine(cursor.row);
+      const beforeCursor = line.slice(0, cursor.column);
+
+      // cek partial createElement
+      const match = beforeCursor.match(
+        /document\.createElement\(\s*(['"]?)([^\)'"]*)$/,
+      );
+
+      if (match) {
+        const elementName = match[2]; // string partial user
+        if (!elementName) return; // skip kalau kosong
+
+        const tempEl = document.createElement(elementName);
+        // ambil semua properti/method
+        const props = [];
+        let obj = tempEl;
+        while (obj) {
+          Object.getOwnPropertyNames(obj).forEach(p => props.push(p));
+          obj = Object.getPrototypeOf(obj);
+        }
+        // hapus duplikat
+        const uniqueProps = [...new Set(props)];
+
+        console.log('Methods/props:', uniqueProps);
+      }
+    });
+
+    const fullContent = session.getValue();
+    console.log(fullContent);
     // cek dot sederhana
     const match = before.match(/([\w\.]+)\.$/);
 
@@ -933,8 +1331,10 @@ Editor.prototype.bebekComplete = {
       // telusuri chain path (misal: Object.keys)
       for (let i = 0; i < path.length; i++) {
         const key = path[i];
+
         if (Object.prototype.hasOwnProperty.call(currentObj, key)) {
           currentObj = currentObj[key];
+          console.log(currentObj[key]);
         } else {
           currentObj = null;
           break;
@@ -944,7 +1344,7 @@ Editor.prototype.bebekComplete = {
 
       // ⚡ special case agar lebih stabil
       const last = path[path.length - 1];
-
+      console.log(last);
       switch (last) {
         case 'Object':
           obj = Object;
@@ -960,6 +1360,11 @@ Editor.prototype.bebekComplete = {
           break;
         case 'document':
           obj = document;
+
+          break;
+        case 'document.createElement':
+          obj = document.createElement;
+          alert();
           break;
         case 'Window':
           obj = Window;
@@ -1005,6 +1410,7 @@ Editor.prototype.bebekComplete = {
     if (typeof window === 'undefined' || typeof this === 'undefined') {
       important.add('globalThis');
     } else important.add('window');
+
     // generate daftar properti
     const props = getAllProps(obj)
       .filter(n => !/^(__.*__$|constructor$|callee$|__proto__$)/.test(n))
@@ -1024,7 +1430,15 @@ Editor.prototype.bebekComplete = {
     callback(null, props);
   },
 };
-
+function getAllProps(obj) {
+  const props = new Set();
+  let current = obj;
+  while (current) {
+    Object.getOwnPropertyNames(current).forEach(p => props.add(p));
+    current = Object.getPrototypeOf(current);
+  }
+  return [...props];
+}
 Editor.prototype.keywordJs = {
   getCompletions: function (editor, session, pos, prefix, callback) {
     const fullContent = session.getValue();
@@ -1041,7 +1455,7 @@ Editor.prototype.keywordJs = {
 
       // cek apakah cursor berada di dalam body function
       if (cursorIndex >= bodyStart && cursorIndex <= bodyEnd) {
-        console.log(line);
+        // console.log(line);
         // if (line.slice(0, pos.column))
         // tampilkan arguments
         return callback(null, [
@@ -1061,22 +1475,12 @@ Editor.prototype.keywordJs = {
   id: 'keywordCompleter',
 };
 
-function getAllProps(obj) {
-  const props = new Set();
-  let current = obj;
-  while (current) {
-    Object.getOwnPropertyNames(current).forEach(p => props.add(p));
-    current = Object.getPrototypeOf(current);
-  }
-  return [...props];
-}
-
 const app = new Editor();
 
 app.init();
 
 app.setFontSize(16);
-
+app.editor.setValue('document.createElement("div")', -1);
 // app.$add.completer(objectCompleter);
 
 // addValue('http://127.0.0.1:5500/editor.js');
@@ -1094,296 +1498,3 @@ app.setFontSize(16);
 //   }
 // }
 // // editor.setOptions(defaultSettings);
-
-// const objectCompleter = {
-//   getCompletions: function (editor, session, pos, prefix, callback) {
-//     const langTools = ace.require('ace/ext/language_tools');
-//     const scope = session.$modeId;
-//     const line = session.getLine(pos.row);
-//     const before = line.slice(0, pos.column);
-//     const match = before.match(/([\w\.]+)\.$/);
-
-//     function customCompleterJs() {
-//       if (!match) {
-//         // fallback ke bawaan Ace (keyword, snippet, text)
-//         return langTools.keyWordCompleter.getCompletions(
-//           editor,
-//           session,
-//           pos,
-//           prefix,
-//           callback,
-//         );
-//         // }
-//         return callback(null, []);
-//       }
-
-//       const path = match[1].split('.');
-//       let obj = window;
-
-//       for (let i = 0; i < path.length; i++) {
-//         if (obj && path[i] in obj) {
-//           obj = obj[path[i]];
-//         } else {
-//           obj = null;
-//           break;
-//         }
-//       }
-
-//       if (!obj) return callback(null, []);
-
-//       const props = getAllProps(obj).filter(
-//         name => !/^(__.*__$|prototype$|constructor$)/.test(name),
-//       );
-
-//       const list = props.map(name => {
-//         let meta = 'property';
-//         try {
-//           if (typeof obj[name] === 'function') {
-//           }
-//         } catch (e) {
-//           // jangan error kalau properti tidak bisa diakses
-//         }
-//         return {
-//           caption: name,
-//           value: name,
-//           meta,
-//           score: 9999,
-//         };
-//       });
-//       callback(null, list);
-//     }
-//     if (scope.includes('javascript')) customCompleterJs();
-//   },
-// };
-
-// const langTools = ace.require('ace/ext/language_tools');
-// // langTools.setCompleters([]); // kosongkan dulu
-// // langTools.setCompleters([objectCompleter]); // jangan di ganggu yang ini <--
-// const customCompleter = {
-//   getCompletions: function (editor, session, pos, prefix, callback) {
-//     const line = session.getLine(pos.row).slice(0, pos.column);
-//     // Regex kasar untuk mendeteksi:
-//     // 1. Setelah 'function ' -> menulis nama fungsi
-//     // 2. Di dalam kurung () setelah function -> menulis parameter
-//     const insideFunctionName = /function\s+[a-zA-Z_$][\w$]*?$/.test(line);
-//     const insideFunctionParams = /function\s+[a-zA-Z_$][\w$]*\([^)]*$/.test(
-//       line,
-//     );
-
-//     if (insideFunctionName || insideFunctionParams) {
-//       // jangan tampilkan snippet atau saran Ace bawaan
-//       return callback(null, []);
-//     }
-//     const customWords = [
-//       {
-//         caption: 'cl',
-//         snippet: 'console.log(${1})${2}', // langsung jadi console.
-//         meta: 'snippet',
-//         type: 'snippet',
-//         score: 99999,
-//       },
-//       {
-//         caption: 'cw',
-//         snippet: 'console.warn(${1})${2}',
-//         meta: 'snippet',
-//         type: 'snippet',
-//       },
-//       {
-//         caption: 'ce',
-//         snippet: 'console.error(${1})${2}',
-//         meta: 'snippet',
-//         type: 'snippet',
-//       },
-//       {
-//         caption: 'fun',
-//         snippet: 'function ${1}(${2}) {\n${3}\n}',
-//         meta: 'snippet',
-//         type: 'snippet',
-//       },
-//     ];
-
-//     const filtered = customWords.filter(c => c.caption.startsWith(prefix));
-//     callback(null, filtered);
-//   },
-// };
-// // langTools.setCompleters([]); // kosongkan dulu
-
-// // Hanya pakai completer custom ini
-// langTools.setCompleters([
-//   objectCompleter,
-//   customCompleter, // jangan di ganggu yang ini <--
-// ]);
-
-// editor.setOptions({
-//   enableBasicAutocompletion: true,
-//   enableLiveAutocompletion: true,
-// });
-
-// var ternWorker = new Worker('tern-worker.js');
-
-// var ternCompleter = {
-//   getCompletions: function (editor, session, pos, prefix, callback) {
-//     // Konversi posisi cursor ke Tern format
-//     var cursor = editor.getCursorPosition();
-//     var end = editor.session.doc.positionToIndex(cursor);
-
-//     // listen response sekali
-//     function handleMsg(e) {
-//       if (!e.data) return;
-//       const resp = e.data;
-//       if (resp.completions) {
-//         const completions = resp.completions
-//           .filter(c => c.name) // buang yang tidak ada name
-//           .map(c => ({
-//             value: c.name,
-//             meta: c.type || 'tern',
-//           }));
-//         callback(null, completions);
-//       }
-//       ternWorker.removeEventListener('message', handleMsg);
-//     }
-//     ternWorker.addEventListener('message', handleMsg);
-
-//     // kirim request ke worker
-//     ternWorker.postMessage({
-//       type: 'completion',
-//       code: editor.getValue(),
-//       pos: end,
-//     });
-//   },
-// };
-
-// // global reference tooltip bawaan Ace
-// let tooltip = editor.container.querySelector('.ace_tooltip');
-// let tooltipHideTimeout = null;
-// function hideTooltip() {
-//   if (tooltip) {
-//     //bagian sini jika gw remove bisa hilang tapi tooltip yang di () hilang, dan jika hanya innerHtml = '' itu ngk membuathkan hasil
-//     tooltip.style.display = 'none';
-//     tooltip.innerHTML = '';
-//   }
-// }
-
-// // hide tooltip otomatis saat cursor bergerak
-// editor.selection.on('changeCursor', hideTooltip);
-// // editor.getSession().on('change', hideTooltip);
-
-// // event untuk ) baru
-// editor.getSession().on('change', function (e) {
-//   const code = editor.getValue();
-//   const cursor = editor.getCursorPosition();
-//   const line = editor.session.getLine(cursor.row);
-
-//   // hide tooltip kalau line tidak ada ')'
-//   if (!line.includes(')')) return hideTooltip();
-
-//   const end = editor.session.doc.positionToIndex(cursor);
-
-//   function handleTooltip(e) {
-//     const t = e.data.tooltip;
-//     if (!t || !t.exprName) return hideTooltip();
-
-//     // cek posisi cursor sekarang
-//     const curPos = editor.getCursorPosition();
-//     const line = editor.session.getLine(curPos.row);
-//     if (!line.includes(')')) return hideTooltip(); // kalau cursor udah pindah, jangan tampilkan
-
-//     const funcName = t.exprName;
-//     const info = t.doc || t.type || '';
-
-//     tooltip.innerHTML = info.replace(
-//       new RegExp(`\\b${funcName}\\b`, 'g'),
-//       `<span style="color:#e06c6b;font-weight:bold">${funcName}</span>`,
-//     );
-
-//     const coords = editor.renderer.textToScreenCoordinates(
-//       curPos.row,
-//       curPos.column,
-//     );
-//     tooltip.style.left = coords.pageX + 'px';
-//     tooltip.style.top = coords.pageY + 30 + 'px';
-//     tooltip.style.display = 'block';
-
-//     ternWorker.removeEventListener('message', handleTooltip);
-//   }
-
-//   ternWorker.addEventListener('message', handleTooltip, { once: true });
-
-//   // add file dulu kalau perlu
-//   ternWorker.postMessage({
-//     type: 'addFile',
-//     name: 'file1.js',
-//     text: code,
-//   });
-
-//   // baru request tooltip
-//   ternWorker.postMessage({
-//     type: 'tooltip',
-//     code: code,
-//     pos: end,
-//   });
-// });
-
-// // global reference ke tooltip aktif
-// let activeTooltip = null;
-// editor.selection.on('changeCursor', function () {
-//   const tooltip = editor.container.querySelector('.ace_tooltip');
-//   if (tooltip) tooltip.style.display = 'none';
-// });
-
-// // 1️⃣ Daftar event DOM
-// const domEvents = [
-//   'click',
-//   'dblclick',
-//   'mousedown',
-//   'mouseup',
-//   'mousemove',
-//   'mouseenter',
-//   'mouseleave',
-//   'keydown',
-//   'keyup',
-//   'keypress',
-//   'touchstart',
-//   'touchend',
-//   'touchmove',
-// ];
-
-// // 2️⃣ Custom completer
-// const eventCompleter = {
-//   getCompletions: function (editor, session, pos, prefix, callback) {
-//     const line = session.getLine(pos.row);
-//     const col = pos.column;
-
-//     // 🔥 Regex: deteksi cursor di dalam parameter pertama addEventListener
-//     // match addEventListener("...cursor..."   atau addEventListener('...cursor...'
-//     const regex = /addEventListener\s*\(\s*(['"])([^'"]*)$/;
-//     const match = line.slice(0, col).match(regex);
-
-//     if (match) {
-//       // cursor ada di dalam string parameter pertama
-//       callback(
-//         null,
-//         domEvents.map(e => ({
-//           caption: e,
-//           value: e,
-//           // meta: "DOM Event",
-
-//           score: 9999,
-//         })),
-//       );
-//     } else {
-//       callback(null, []); // di luar string, autocomplete tidak muncul
-//     }
-//   },
-// };
-// langTools.addCompleter(eventCompleter);
-// langTools.addCompleter(ternCompleter);
-
-// // === kunci biar popup muncul setelah titik ===
-// editor.commands.on('afterExec', function (e) {
-//   if (e.command.name === 'insertstring' && e.args === '.') {
-//     editor.execCommand('startAutocomplete');
-//   }
-// });
-
-// // load file contoh
