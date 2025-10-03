@@ -8,16 +8,21 @@ let lastTouchY;
 let lastTime;
 let velocityY = 0;
 let animationId = null;
-
+//0.96 & 100
 const decelerationFactor = 0.96;
 const speedMultiplier = 100;
-
+const contentRect = scrollContent.getBoundingClientRect()
 function updatePosition(y) {
-  const containerHeight = scrollContainer.offsetHeight;
-  const contentHeight = scrollContent.offsetHeight;
+  const containerHeight = scrollContainer.offsetHeight
+   const contentHeight = scrollContent.offsetHeight;
+    //const contentHeight = contentRect.height;
+    console.log()
+    console.log(contentHeight)
+  const lineHeight = parseInt(getComputedStyle(scrollContent).lineHeight)
+  
+  
   const maxScrollY = 0;
   const minScrollY = (contentHeight > containerHeight) ? containerHeight - contentHeight : 0;
-  
   let newY = y;
   
   if (newY > maxScrollY) {
@@ -26,7 +31,10 @@ function updatePosition(y) {
     newY = minScrollY + (newY - minScrollY) * 0.5;
   }
   
-  scrollContent.style.transform = `translateY(${newY}px)`;
+
+  // scrollContent.style.transform = `translateY(${newY}px)`;
+  scrollContent.style.top = newY + "px"
+
   currentY = newY;
   offsetDisplay.textContent = `Offset Y: ${Math.round(currentY)}px`;
 }
@@ -47,16 +55,19 @@ function updateMomentum() {
 
 function snapToBounds() {
   const containerHeight = scrollContainer.offsetHeight;
-  const contentHeight = scrollContent.offsetHeight;
+  const contentHeight = contentRect.height;
   const minScrollY = (contentHeight > containerHeight) ? containerHeight - contentHeight : 0;
   
   if (currentY > 0) {
-    scrollContent.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-    scrollContent.style.transform = `translateY(0px)`;
+    scrollContent.style.transition = 'top 150ms cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+    // scrollContent.style.transform = `translateY(0px)`;
+    scrollContent.style.top = 0 +"px";
+
     currentY = 0;
   } else if (currentY < minScrollY) {
-    scrollContent.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-    scrollContent.style.transform = `translateY(${minScrollY}px)`;
+    scrollContent.style.transition = 'top 150ms cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+    // scrollContent.style.transform = `translateY(${minScrollY}px)`;
+    scrollContent.style.top = minScrollY + "px"
     currentY = minScrollY;
   }
 }
@@ -134,3 +145,10 @@ document.addEventListener('touchcancel', () => {
   isScrolling = false;
   snapToBounds();
 });
+
+
+class User {
+  constructor() {
+    
+  }
+}
