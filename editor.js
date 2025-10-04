@@ -1,9 +1,13 @@
 class Editor {
   constructor(container) {
-    this.editor = ace.edit('editor');
+    try {
+      this.editor = ace.edit('editor');
 
-    this.langTools = ace.require('ace/ext/language_tools');
-    this.editor.setOptions(this.defaultOptions());
+      this.langTools = ace.require('ace/ext/language_tools');
+      this.editor.setOptions(this.defaultOptions());
+    } catch (error) {
+      console.warn(error);
+    }
   }
 
   set mode(mode) {
@@ -59,7 +63,8 @@ class TouchCursors extends Editor {
       { class: 'ace_cursor' },
       this.leftCursor,
     );
-
+    this.dragScrolling = false;
+    this.dragThreshold = 2; // pixel
     this.touching = null; // 'c' | 'l' | 'r' | null
     this.editor.selection.$cursorChanged = false;
 
@@ -282,8 +287,36 @@ class TouchCursors extends Editor {
           // 3️⃣ Set range dan scroll otomatis ke posisi selection akhir
           this.editor.selection.setRange(range);
 
-          // Scroll ke end selection supaya terlihat saat drag
-          this.editor.renderer.scrollCursorIntoView(range.end, 0.5);
+          const rect = this.container.getBoundingClientRect();
+          const cursorY = touch.clientY;
+
+          // buffer atas & bawah sebelum scroll jalan
+          const BUFFER_TOP = 100;
+          const BUFFER_BOTTOM = 100;
+
+          let scrollDelta = 0;
+
+          // jika handle mendekati batas atas
+          if (cursorY - rect.top < BUFFER_TOP) {
+            scrollDelta = -Math.max(BUFFER_TOP - (cursorY - rect.top), 0);
+          }
+          // jika handle mendekati batas bawah
+          else if (cursorY - rect.top > rect.height - BUFFER_BOTTOM) {
+            scrollDelta = Math.max(
+              cursorY - rect.top - (rect.height - BUFFER_BOTTOM),
+              0,
+            );
+          }
+
+          // scroll halus
+          const SPEED = 0.15; // bisa lo tweak
+          if (scrollDelta !== 0) {
+            this.editor.renderer.scrollBy(0, scrollDelta * SPEED);
+          }
+
+          // scroll bawaan ace
+          // this.editor.renderer.scrollCursorIntoView(range.end, OFFSET, VIEW_MARGIN);
+
           // sembunyikan caretleft pada saat drag cursorRight di move
           this.hideCursor(this.leftCursor);
         }
@@ -492,8 +525,9 @@ class TouchCursors extends Editor {
     // Pilih satu kata
     selection.selectWord();
     this.hideCursor(this.caretCursor);
+
     // Scroll biar kelihatan
-    this.editor.renderer.scrollCursorIntoView(pos);
+    this.editor.renderer.scrollCursorIntoView(pos, 0.5);
   }
 
   onDragEnd(clientX, clientY) {
@@ -1060,7 +1094,6 @@ function getAllProps(obj) {
 }
 
 // ====== Modifikasi init: daftarkan domCompleter via addCompleter & pasang afterExec trigger ======
-const _origInit = Editor.prototype.init;
 
 Editor.prototype.touchCursors = new TouchCursors();
 
@@ -1077,10 +1110,55 @@ Editor.prototype.init = function init(options = {}) {
     this.domCompleter,
     this.ternCompleter,
   ]);
+
   this.initTernTooltip();
   window.addEventListener('resize', () => this.updateEditorMaxLines());
 };
+Editor.prototype.tsCompleter = function () {
+  const ts = window.ts;
+  const files = {
+    'main.js': this.editor.getValue(),
+  };
 
+  // buat LanguageService
+  const services = ts.createLanguageService(
+    {
+      getScriptFileNames: () => Object.keys(files),
+      getScriptVersion: () => '1',
+      getScriptSnapshot: fileName => {
+        if (files[fileName])
+          return ts.ScriptSnapshot.fromString(files[fileName]);
+        return undefined;
+      },
+      getCurrentDirectory: () => './',
+      getCompilationSettings: () => ({ allowJs: true }),
+      getDefaultLibFileName: () => 'lib.d.ts',
+    },
+    ts.createDocumentRegistry(),
+  );
+  const tsCompleter = {
+    getCompletions: function (editor, session, pos, prefix, callback) {
+      // update file content
+      files['main.js'] = session.getValue();
+
+      const offset = session.getDocument().positionToIndex(pos, 0);
+      const completions =
+        services.getCompletionsAtPosition('main.js', offset, {
+          includeExternalModuleExports: true,
+        }) || [];
+
+      callback(
+        null,
+        completions.entries.map(entry => ({
+          caption: entry.name,
+          value: entry.name,
+          meta: entry.kind,
+        })),
+      );
+    },
+  };
+  this.autocomplete.register([tsCompleter]);
+};
 Editor.prototype.customsnippet = {
   getCompletions: function (editor, session, pos, prefix, callback) {
     if (!editor.session.$modeId.includes('javascript'))
@@ -1483,18 +1561,18 @@ app.setFontSize(16);
 app.editor.setValue('document.createElement("div")', -1);
 // app.$add.completer(objectCompleter);
 
-// addValue('http://127.0.0.1:5500/editor.js');
+addValue('http://127.0.0.1:5500/editor.js');
 
-// async function addValue(url = '') {
-//   try {
-//     const response = await fetch(url);
-//     if (!response.ok) {
-//       throw new Error(`HTTP error! status: ${response.status}`);
-//     }
-//     const data = await response.text();
-//     editor.setValue(data, -1);
-//   } catch (e) {
-//     console.error('Error fetching data:', e);
-//   }
-// }
-// // editor.setOptions(defaultSettings);
+async function addValue(url = '') {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.text();
+    app.editor.setValue(data, -1);
+  } catch (e) {
+    console.error('Error fetching data:', e);
+  }
+}
+// editor.setOptions(defaultSettings);
